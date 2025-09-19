@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
+import { getUser } from '../api/users'
+import { getUserIdFromToken } from '../api/client'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -16,13 +18,22 @@ export default function Login() {
     setError('')
     try {
       const res = await login({ email, password })
-      if (res?.token) {
-        setAuth(res.token)
-        const from = location.state?.from?.pathname || '/dashboard'
-        navigate(from, { replace: true })
-      } else {
+      if (!res?.token) {
         setError('Réponse inattendue du serveur.')
+        return
       }
+      setAuth(res.token)
+
+      const id = getUserIdFromToken(res.token)
+      if (!id) {
+        setError('Token invalide: userId introuvable')
+        return
+      }
+      const user = await getUser(id)
+      const dest = user?.onboarding_done
+        ? (location.state?.from?.pathname || '/dashboard')
+        : '/onboarding'
+      navigate(dest, { replace: true })
     } catch (e) {
       setError(e?.response?.data?.error || 'Erreur de connexion')
     }

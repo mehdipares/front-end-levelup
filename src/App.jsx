@@ -1,6 +1,7 @@
 import React from 'react'
-import { Routes, Route, Link, Navigate } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'
 import Login from './pages/Login'
+import CustomGoal from './pages/CustomGoal'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Onboarding from './pages/Onboarding'
@@ -9,6 +10,7 @@ import Templates from './pages/Templates'
 import Profile from './pages/Profile'
 import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './context/AuthContext'
+
 
 export default function App() {
   const { isAuthenticated, logout } = useAuth()
@@ -22,6 +24,7 @@ export default function App() {
           <Link to="/goals">Mes objectifs</Link>
           <Link to="/templates">Templates</Link>
           <Link to="/profile">Profil</Link>
+          <Link to="/custom-goal">Créer un objectif</Link>
         </>}
         <span style={{ flex: 1 }} />
         {!isAuthenticated ? <>
@@ -31,27 +34,46 @@ export default function App() {
       </nav>
 
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* Accueil PUBLIC : si connecté, on redirige vers le Dashboard */}
+        <Route path="/" element={<HomePublic />} />
+
+        {/* Auth publiques */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
+        {/* Zones protégées */}
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/custom-goal" element={<ProtectedRoute><CustomGoal /></ProtectedRoute>} />
+        
 
+        {/* 404 → Accueil */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   )
 }
 
-function Home() {
+/** Accueil public : visible si non connecté, sinon redirection vers Dashboard */
+function HomePublic() {
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+
   return (
     <div>
       <h1>LevelUp</h1>
-      <p>Bienvenue ! Connecte-toi pour commencer.</p>
+      <p>Bienvenue ! Crée un compte ou connecte-toi pour commencer.</p>
+      <div style={{ display:'flex', gap:8 }}>
+        <button onClick={() => navigate('/login')}>Se connecter</button>
+        <button onClick={() => navigate('/register')}>Créer un compte</button>
+      </div>
     </div>
   )
 }
