@@ -1,0 +1,205 @@
+/* ==== LevelUp x Bootstrap — index.css ==== */
+/* IMPORTANT : dans main.jsx, importe dans cet ordre :
+   import 'bootstrap/dist/css/bootstrap.min.css'
+   import './index.css'                               // <-- overrides après Bootstrap
+   import 'bootstrap/dist/js/bootstrap.bundle.min.js'
+   import 'bootstrap-icons/font/bootstrap-icons.css'
+*/
+
+/* ------------------------------------------------------------------ */
+/* 1) Palette & Overrides Bootstrap                                   */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Brand palette */
+  --brand-primary-700: #1D4ED8;
+  --brand-primary-600: #2563EB;
+  --brand-primary-500: #3B82F6;
+  --brand-secondary-600: #7C3AED;
+  --brand-gold: #F6C544;
+
+  --brand-success: #22C55E;
+  --brand-warning: #F59E0B;
+  --brand-danger:  #EF4444;
+  --brand-info:    #0EA5E9;
+
+  /* Bootstrap theme overrides */
+  --bs-primary: var(--brand-primary-600);
+  --bs-primary-rgb: 37, 99, 235;
+  --bs-secondary: var(--brand-secondary-600);
+  --bs-success: var(--brand-success);
+  --bs-warning: var(--brand-warning);
+  --bs-danger:  var(--brand-danger);
+  --bs-info:    var(--brand-info);
+
+  --bs-link-color: var(--bs-primary);
+  --bs-link-hover-color: var(--brand-primary-700);
+
+  /* LevelUp tokens */
+  --lu-grad: linear-gradient(135deg, #1D4ED8 0%, #2563EB 35%, #7C3AED 100%);
+  --lu-chip-bg:   #F1F5FF;
+  --lu-chip-text: #1F2A37;
+  --lu-card:      #FFFFFF;
+  --lu-soft-line: #E6EAF2;
+  --lu-soft:      #EEF2FF;
+  --lu-line:      #E5EAF7;
+  --lu-shadow-1:  0 6px 22px rgba(16,24,40,.06);
+  --lu-shadow-2:  0 10px 30px rgba(16,24,40,.12);
+}
+
+/* Base */
+html, body, #root { height: 100%; background:#fff; color:#0F172A; }
+a { text-decoration: none; }
+
+/* Cards */
+.card { border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+
+/* Buttons */
+.btn { border-radius: 10px; transition: transform .12s ease, box-shadow .12s ease; }
+.btn-primary { background-color: var(--bs-primary); border-color: var(--bs-primary); }
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--brand-primary-700);
+  border-color: var(--brand-primary-700);
+}
+.btn:active { transform: translateY(0); }
+
+/* Progress (général + XP) */
+.progress { background:#EEF2FF; border-radius: 8px; }
+.progress.xp { background: rgba(255,255,255,.25); height: 16px; border-radius: 999px; }
+.progress.xp .progress-bar {
+  background-image: linear-gradient(90deg, var(--brand-gold), #1E74FF);
+  border-radius: 999px;
+}
+
+/* Badges */
+.badge.text-bg-primary   { background-color: var(--bs-primary) !important; }
+.badge.text-bg-secondary { background-color: #94A3B8 !important; }
+
+/* Pills (barre de catégories Templates) */
+.pill {
+  padding: 8px 14px;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background: #F1F7FF;
+  color: #1f2a37;
+}
+.pill.active {
+  border-color: var(--bs-primary);
+  background: #EAF2FF;
+  box-shadow: inset 0 0 0 2px rgba(37,99,235,.12);
+}
+
+/* Utilitaires */
+.border-soft  { border: 1px solid #E5E7EB !important; }
+.rounded-2xl  { border-radius: 16px !important; }
+.list-group-item { padding-top: .75rem; padding-bottom: .75rem; }
+.list-group-item:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16,24,40,.06); }
+
+/* Alert citation plus douce */
+.alert-secondary { background:#F3F4FF; border-color:#E6E8FF; color:#1f2937; }
+
+/* ------------------------------------------------------------------ */
+/* 2) Look & Feel “Premium” LevelUp                                    */
+/* ------------------------------------------------------------------ */
+
+/* HERO d’XP */
+.lu-hero {
+  background: var(--lu-grad);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: var(--lu-shadow-1);
+  color: #fff;
+}
+.lu-hero-caption {
+  display:flex; justify-content:space-between; gap:12px;
+  font-size:.9rem; opacity:.9; margin-bottom:6px;
+}
+
+/* Quote bulle */
+.lu-quote {
+  background: #EAF2FF;
+  border: 2px solid #D7E3FF;
+  color: #1f2937;
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--lu-shadow-1);
+}
+
+/* Cartes premium */
+.lu-card {
+  background: var(--lu-card);
+  border: 1px solid var(--lu-soft-line);
+  border-radius: 16px;
+  box-shadow: var(--lu-shadow-1);
+}
+
+/* Titres de section soulignés */
+.lu-section-title {
+  font-weight: 800; letter-spacing:.2px; position: relative; display:inline-block;
+}
+.lu-section-title::after {
+  content: ""; position:absolute; left:0; right:0; bottom:-6px; height:6px;
+  background: var(--lu-grad); border-radius:999px; opacity:.18;
+}
+
+/* ------------------------------------------------------------------ */
+/* 3) Objectifs — conteneur invisible + cartes                         */
+/* ------------------------------------------------------------------ */
+.lu-goal-group { display:grid; gap:10px; } /* invisible wrapper */
+
+.lu-goal-card {
+  background:#fff;
+  border:1px solid var(--lu-line);
+  border-radius:14px;
+  padding:10px 12px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  box-shadow: 0 2px 10px rgba(16,24,40,.04);
+}
+.lu-goal-left { display:flex; align-items:center; gap:10px; min-width:0; }
+.lu-ico {
+  width:32px; height:32px; border-radius:12px; display:grid; place-items:center;
+  background:#F1F5FF; color:#2563EB; border:1px solid #DBEAFE; font-size:18px;
+}
+.lu-pill-btn { border-radius:9999px; padding:.35rem .9rem; font-weight:600; }
+
+/* Chips (si tu en remets) */
+.lu-chip {
+  background: var(--lu-chip-bg);
+  color: var(--lu-chip-text);
+  border: 1px solid #DBEAFE;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: .78rem;
+  white-space: nowrap;
+}
+.lu-chip.success { background:#E6FBEA; border-color:#c4f0d0; color:#0F5132; }
+.lu-chip.muted   { opacity:.65; }
+
+/* ------------------------------------------------------------------ */
+/* 4) Priorités — carte violette + items transparents                  */
+/* ------------------------------------------------------------------ */
+.lu-prio {
+  background:#EFEAFF;               /* fond violet doux */
+  border:1px solid #E0D7FF;
+  border-radius:16px;
+  box-shadow: 0 4px 16px rgba(124,58,237,.08);
+  padding: 2em;
+}
+.lu-prio .list-group-item{
+  background: transparent !important;
+  border: none !important;
+  padding-left: 0; padding-right: 0;
+}
+
+/* Barres de priorité */
+.lu-meter {
+  height:10px; border-radius:999px;
+  background: rgba(255,255,255,.35);
+  border: 1px solid rgba(255,255,255,.45);
+  overflow:hidden;
+}
+.lu-meter-fill { height:100%; background: var(--lu-grad); width: var(--w,0%); }
+
+/* CTA mobile flottant (si besoin) */
+.lu-fab { position: sticky; bottom: 12px; width: 100%; box-shadow: var(--lu-shadow-2); }
+
+/* Fin — LevelUp */

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getUser, getPriorities } from '../api/users'
 import { getTodayQuote } from '../api/quotes'
@@ -46,14 +46,13 @@ export default function Dashboard() {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      setLoading(true)
-      setError('')
+      setLoading(true); setError('')
       try {
         const [u, p, q, g] = await Promise.all([
-          getUser(userId),
-          getPriorities(userId),
+          getUser(userId).catch(() => null),
+          getPriorities(userId).catch(() => []),
           getTodayQuote('fr').catch(() => null),
-          listUserGoals(userId, 'active')
+          listUserGoals(userId, 'active').catch(() => [])
         ])
         if (!alive) return
         setUser(u || null)
@@ -78,45 +77,33 @@ export default function Dashboard() {
       </div>
     )
   }
+  if (error) return <div className="alert alert-danger" role="alert">{error}</div>
 
-  if (error) {
-    return <div className="alert alert-danger" role="alert">{error}</div>
-  }
-
-  if (!user) {
-    return <div className="alert alert-warning" role="alert">Impossible de récupérer le profil utilisateur.</div>
-  }
-
-  // ---- calculs XP / Level (robuste) ----
-  const level = Number(user.level ?? 0)
-  const xp = Number(user.xp ?? 0)
-  const progress = user.xp_progress || {}
-  const span = Number(progress.span ?? 0)
-  const current = Number(progress.current ?? 0)
-  let percent = Number(progress.percent ?? NaN)
+  // XP / Level safe
+  const level   = Number(user?.level ?? 0)
+  const span    = Number(user?.xp_progress?.span ?? 0)
+  const current = Number(user?.xp_progress?.current ?? 0)
+  let percent   = Number(user?.xp_progress?.percent ?? NaN)
   if (!Number.isFinite(percent)) {
-    if (span > 0 && current >= 0) {
-      percent = Math.min(100, Math.max(0, Math.round((current / span) * 100)))
-    } else {
-      percent = 0
-    }
+    percent = span > 0 ? Math.min(100, Math.max(0, Math.round((current / span) * 100))) : 0
   }
 
-  const titleOf = (g) =>
-    g?.GoalTemplate?.title || g?.title || g?.template_title || `Objectif #${g?.id ?? ''}`
+  const titleOf = (g) => g?.GoalTemplate?.title || g?.title || g?.template_title || `Objectif #${g?.id ?? ''}`
+  const eligibleCount = goals.filter(isEligibleToday).length
+
+  const scores   = priorities.map(p => Number(p.score ?? p.score_value ?? 0))
+  const maxScore = Math.max(1, ...scores)
 
   const handleComplete = async (g) => {
     try {
       setDoingId(g.id)
-      const res = await completeUserGoal(userId, g.id)
-      console.log('completed', { xp: res?.xp_awarded, newLevel: res?.newLevel })
-      // maj XP + liste des objectifs
+      await completeUserGoal(userId, g.id)
       const [u2, g2] = await Promise.all([
-        getUser(userId),
-        listUserGoals(userId, 'active')
+        getUser(userId).catch(() => user),
+        listUserGoals(userId, 'active').catch(() => goals)
       ])
       setUser(u2 || user)
-      setGoals(Array.isArray(g2) ? g2 : [])
+      setGoals(Array.isArray(g2) ? g2 : goals)
     } catch (e) {
       alert(e?.response?.data?.error || 'Impossible de valider pour le moment')
     } finally {
@@ -124,119 +111,123 @@ export default function Dashboard() {
     }
   }
 
+  const goalEmoji = (g) => {
+    const name = (g?.GoalTemplate?.title || '').toLowerCase()
+    if (name.includes('sport') || name.includes('muscu') || name.includes('run')) return '🏋️'
+    if (name.includes('médit') || name.includes('respir')) return '🧘'
+    if (name.includes('lecture') || name.includes('lire')) return '📚'
+    if (name.includes('sommeil') || name.includes('dodo')) return '😴'
+    if (name.includes('eau') || name.includes('hydrate')) return '💧'
+    return '✅'
+  }
+
   return (
-    <div className="container px-0">
-      {/* Quote */}
+    <div className="container py-3">
+      {/* Barre d’XP (hero) */}
+      <div className="d-flex justify-content-center mb-4">
+        <div className="w-100 lu-hero" style={{ maxWidth: 920 }}>
+          <div className="lu-hero-caption">
+            <span>Niveau {level}</span>
+            <span>{current}/{span} ({percent}%)</span>
+          </div>
+          <div className="progress xp">
+            <div className="progress-bar" style={{ width: `${percent}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Citation */}
       {quote && (
-        <div className="alert alert-secondary" role="alert">
+        <div className="lu-quote text-center mb-4">
           <em>&ldquo;{quote.text}&rdquo;</em>
           {quote.author && <span className="ms-2">— {quote.author}</span>}
         </div>
       )}
-      
 
-      {/* Profil + XP */}
-      <div className="row g-3">
+      {/* Grille responsive */}
+      <div className="row g-4 align-items-start">
+        {/* OBJECTIFS — conteneur invisible */}
         <div className="col-12 col-lg-6">
-          <div className="card shadow-sm">
-            <div className="card-body">
-              <h5 className="card-title mb-3">Profil</h5>
-              <div className="row">
-                <div className="col-6">
-                  <div className="text-muted">Pseudo</div>
-                  <div className="fw-semibold">{user.username || '—'}</div>
-                </div>
-                <div className="col-6">
-                  <div className="text-muted">Email</div>
-                  <div className="fw-semibold">{user.email || '—'}</div>
-                </div>
-              </div>
-              <hr />
-              <div className="mb-2">
-                <span className="badge text-bg-primary me-2">Niveau {level}</span>
-                <span className="badge text-bg-light">{xp} XP</span>
-              </div>
-
-              <div className="mb-1 d-flex justify-content-between">
-                <small className="text-muted">Progression niveau {level}</small>
-                <small className="text-muted">{current}/{span} ({percent}%)</small>
-              </div>
-              <div className="progress" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100" style={{ height: 12 }}>
-                <div className="progress-bar" style={{ width: `${percent}%` }} />
-              </div>
-            </div>
+          <div className="text-center mb-3">
+            <h5 className="lu-section-title mb-1">Mes objectifs aujourd’hui</h5>
+            <div className="small text-muted">{eligibleCount}/{goals.length} prêts</div>
           </div>
+
+          {!goals.length ? (
+            <div className="alert alert-light border mb-0">Aucun objectif actif.</div>
+          ) : (
+            <div className="lu-goal-group">
+              {goals.map((g) => {
+                const eligible = isEligibleToday(g)
+                return (
+                  <div key={g.id} className="lu-goal-card">
+                    <div className="lu-goal-left">
+                      <span className="lu-ico">{goalEmoji(g)}</span>
+                      <span className="fw-semibold text-truncate">{titleOf(g)}</span>
+                    </div>
+                    <button
+                      className={`btn btn-sm ${eligible ? 'btn-success' : 'btn-secondary'} lu-pill-btn`}
+                      onClick={() => handleComplete(g)}
+                      disabled={!eligible || doingId === g.id}
+                      title={eligible ? 'Valider' : 'Indisponible pour le moment'}
+                    >
+                      {doingId === g.id ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                          Validation…
+                        </>
+                      ) : (eligible ? 'Valider' : 'Indispo')}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <a href="/goals" className="btn btn-primary w-100 d-md-none mt-3">
+            gérer mes objectifs
+          </a>
         </div>
 
-        {/* Mes objectifs aujourd’hui */}
-      <div className="mt-4">
-        <h5 className="mb-2">Mes objectifs aujourd’hui</h5>
-        {!goals.length ? (
-          <p>Aucun objectif actif.</p>
-        ) : (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {goals.map((g) => {
-              const eligible = isEligibleToday(g)
-              return (
-                <li
-                  key={g.id}
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: 8,
-                    padding: 8,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 8
-                  }}
-                >
-                  <span>{titleOf(g)}</span>
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => handleComplete(g)}
-                    disabled={!eligible || doingId === g.id}
-                  >
-                    {doingId === g.id ? '...' : 'Valider'}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
-
-        {/* Priorités */}
+        {/* PRIORITÉS — carte violette, items transparents */}
         <div className="col-12 col-lg-6">
-          <div className="card shadow-sm h-100">
+          <div className="lu-prio">
             <div className="card-body">
-              <h5 className="card-title mb-3">Priorités</h5>
+              <h5 className="lu-section-title mb-3">Priorités</h5>
+
               {!priorities?.length ? (
                 <div className="alert alert-info mb-0">
                   Pas de priorités calculées pour l’instant.
                   <div className="mt-2">
-                    <a className="btn btn-sm btn-outline-primary" href="/onboarding">Faire l’onboarding</a>
+                    <a className="btn btn-sm btn-outline-primary" href="/onboarding">
+                      Commencer l’onboarding
+                    </a>
                   </div>
                 </div>
               ) : (
-                <ol className="list-group list-group-numbered">
+                <ul className="list-group">
                   {priorities.map((p, idx) => {
-                    const name = p.Category?.name ?? p.category_name ?? `Catégorie ${p.category_id}`
-                    const score = typeof p.score === 'number' ? p.score : (p.score_value ?? 0)
+                    const name  = p.Category?.name ?? p.category_name ?? `Catégorie ${p.category_id}`
+                    const score = Number(p.score ?? p.score_value ?? 0)
+                    const w = Math.max(0, Math.min(100, Math.round((score / Math.max(1, ...scores)) * 100)))
                     return (
-                      <li key={`${p.category_id}-${idx}`} className="list-group-item d-flex justify-content-between align-items-center">
-                        <span>{name}</span>
-                        <span className="badge text-bg-secondary">{score}</span>
+                      <li key={`${p.category_id}-${idx}`} className="list-group-item">
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <span className="fw-semibold">{name}</span>
+                          <span className="badge text-bg-secondary">{score}</span>
+                        </div>
+                        <div className="lu-meter">
+                          <div className="lu-meter-fill" style={{ '--w': `${w}%` }} />
+                        </div>
                       </li>
                     )
                   })}
-                </ol>
+                </ul>
               )}
             </div>
           </div>
         </div>
       </div>
-
-      
     </div>
   )
 }
