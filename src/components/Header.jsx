@@ -1,49 +1,61 @@
 import React from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { Offcanvas } from 'bootstrap' // ✅ API ESM fiable
 
 export default function Header() {
   const { isAuthenticated, logout } = useAuth()
+  const navigate = useNavigate()
 
-  const authedLinks = [
-    { to: '/',           label: 'Accueil' },
-    { to: '/dashboard',  label: 'Dashboard' },
-    { to: '/goals',      label: 'Objectifs' },
-    { to: '/templates',  label: 'Templates' },
-    { to: '/profile',    label: 'Profil' },
-    { to: '/custom-goal',label: 'Créer un objectif' },
+  const linksAuthed = [
+    { to: '/',            label: 'Accueil' },
+    { to: '/dashboard',   label: 'Dashboard' },
+    { to: '/goals',       label: 'Objectifs' },
+    { to: '/templates',   label: 'Templates' },
+    { to: '/profile',     label: 'Profil' },
+    { to: '/custom-goal', label: 'Créer un objectif' },
   ]
-  const publicLinks = [
+  const linksPublic = [
     { to: '/',          label: 'Accueil' },
     { to: '/login',     label: 'Se connecter' },
     { to: '/register',  label: 'Créer un compte' },
   ]
+  const links = isAuthenticated ? linksAuthed : linksPublic
 
-  const links = isAuthenticated ? authedLinks : publicLinks
+  const getOC = () => {
+    const el = document.getElementById('appNavLeft')
+    if (!el) return null
+    return Offcanvas.getInstance(el) || new Offcanvas(el)
+  }
+
+  const openMenu = () => { getOC()?.toggle() }
+  const go = (to) => {
+    navigate(to)
+    // petite tempo pour laisser React Router changer la page avant fermeture
+    setTimeout(() => getOC()?.hide(), 0)
+  }
 
   return (
     <>
       <nav
         className="navbar navbar-dark sticky-top shadow-sm"
-        style={{ background: 'var(--lu-grad)' }} // bleu/violet de la charte
+        style={{ background: 'var(--lu-grad)' }} // bleu/violet charte
       >
         <div className="container">
-          {/* Burger à gauche */}
+          {/* Burger à gauche — ouverture programmatique */}
           <button
             className="navbar-toggler me-2"
             type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#appNavLeft"
-            aria-controls="appNavLeft"
             aria-label="Ouvrir le menu"
+            onClick={openMenu}
           >
             <span className="navbar-toggler-icon"></span>
           </button>
 
           {/* Brand */}
-          <Link className="navbar-brand fw-bold" to="/">
+          <NavLink className="navbar-brand fw-bold" to="/" onClick={() => go('/')}>
             LEVEL·UP
-          </Link>
+          </NavLink>
 
           {/* Bouton à droite */}
           <div className="ms-auto d-flex align-items-center gap-2">
@@ -56,29 +68,29 @@ export default function Header() {
         </div>
       </nav>
 
-      {/* Offcanvas GAUCHE (menu burger) */}
+      {/* Offcanvas GAUCHE — fond charte */}
       <div
         className="offcanvas offcanvas-start"
-        tabIndex="-1"
         id="appNavLeft"
         aria-labelledby="appNavLeftLabel"
-        style={{ background: 'var(--lu-grad)', color: '#fff' }} // bleu charte
+        style={{ background: 'var(--lu-grad)', color: '#fff' }}
       >
         <div className="offcanvas-header">
           <h5 className="offcanvas-title" id="appNavLeftLabel">Navigation</h5>
-          <button type="button" className="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Fermer"></button>
+          <button type="button" className="btn-close btn-close-white" onClick={() => getOC()?.hide()} aria-label="Fermer"></button>
         </div>
 
         <div className="offcanvas-body d-flex flex-column">
           <ul className="navbar-nav flex-grow-1">
             {links.map(link => (
               <li key={link.to} className="nav-item">
+                {/* NavLink pour le style actif + navigation manuelle fiable */}
                 <NavLink
                   to={link.to}
+                  onClick={(e) => { e.preventDefault(); go(link.to) }}
                   className={({ isActive }) =>
                     'nav-link text-white' + (isActive ? ' active fw-semibold' : '')
                   }
-                  data-bs-dismiss="offcanvas" // ferme le menu au clic
                 >
                   {link.label}
                 </NavLink>
@@ -86,24 +98,16 @@ export default function Header() {
             ))}
           </ul>
 
-          {/* Actions en bas du menu */}
+          {/* Actions en bas */}
           <div className="mt-3">
             {isAuthenticated ? (
-              <button
-                className="btn btn-light w-100"
-                onClick={logout}
-                data-bs-dismiss="offcanvas"
-              >
+              <button className="btn btn-light w-100" onClick={() => { logout(); getOC()?.hide() }}>
                 Se déconnecter
               </button>
             ) : (
               <div className="d-grid gap-2">
-                <NavLink className="btn btn-light" to="/login" data-bs-dismiss="offcanvas">
-                  Se connecter
-                </NavLink>
-                <NavLink className="btn btn-outline-light" to="/register" data-bs-dismiss="offcanvas">
-                  Créer un compte
-                </NavLink>
+                <button className="btn btn-light" onClick={() => go('/login')}>Se connecter</button>
+                <button className="btn btn-outline-light" onClick={() => go('/register')}>Créer un compte</button>
               </div>
             )}
           </div>
