@@ -1,9 +1,10 @@
 // src/pages/Templates.jsx
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { listTemplates } from '../api/goalTemplates'
 import { listCategories } from '../api/categories'
 import { addUserGoal } from '../api/goals'
+import { Toast } from 'bootstrap' // ✅ API Bootstrap pour afficher la toast
 
 export default function Templates() {
   const { userId } = useAuth()
@@ -14,6 +15,11 @@ export default function Templates() {
   const [activeCat, setActiveCat] = useState('all')
   const [search, setSearch] = useState('')
   const [addingId, setAddingId] = useState(null)
+
+  // Toast refs/state
+  const toastRef = useRef(null)
+  const toastInstRef = useRef(null)
+  const [toastMsg, setToastMsg] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -35,6 +41,23 @@ export default function Templates() {
     })()
     return () => { alive = false }
   }, [])
+
+  // Instancier la Toast Bootstrap une fois le DOM monté
+  useEffect(() => {
+    if (toastRef.current) {
+      toastInstRef.current = Toast.getOrCreateInstance(toastRef.current, {
+        autohide: true,
+        delay: 2600
+      })
+    }
+  }, [])
+
+  // Afficher la toast quand le message change
+  useEffect(() => {
+    if (toastMsg && toastInstRef.current) {
+      toastInstRef.current.show()
+    }
+  }, [toastMsg])
 
   const catById = useMemo(() => {
     const m = new Map()
@@ -58,9 +81,12 @@ export default function Templates() {
       setAddingId(t.id)
       const cadence = (t.frequency_type || 'daily').toLowerCase()
       await addUserGoal(userId, { template_id: t.id, cadence })
-      alert('Objectif ajouté ✅')
+
+      // ✅ Notif “stylée” au lieu de alert()
+      setToastMsg(`“${t.title}” ajouté à tes objectifs 🎉`)
     } catch (e) {
-      alert(e?.response?.data?.error || 'Erreur ajout')
+      // En cas d’erreur réseau/API, on garde une vraie alerte rouge Bootstrap
+      setError(e?.response?.data?.error || 'Erreur ajout')
     } finally {
       setAddingId(null)
     }
@@ -68,14 +94,42 @@ export default function Templates() {
 
   return (
     <div className="container py-3">
-      {/* Titre + compteur + recherche (stack mobile, aligné sur desktop) */}
+      {/* Toast container (fixe, en bas à droite) */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="position-fixed bottom-0 end-0 p-3"
+        style={{ zIndex: 1080 }}
+      >
+        <div
+          ref={toastRef}
+          className="toast border-0 text-white"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          style={{
+            background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 35%, #7C3AED 100%)',
+            boxShadow: '0 10px 30px rgba(16,24,40,.2)',
+            minWidth: 280
+          }}
+        >
+          <div className="toast-body d-flex align-items-start">
+            <i className="bi bi-check2-circle fs-5 me-2" />
+            <div className="flex-grow-1">
+              <strong>Objectif ajouté !</strong>
+              <div className="small opacity-90">{toastMsg}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Titre + compteur + recherche */}
       <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-3 mb-3">
         <div className="flex-grow-1">
           <h2 className="mb-1">Templates d’objectifs</h2>
           <div className="text-muted small">{filtered.length}/{templates.length} visibles</div>
         </div>
 
-        {/* Barre de recherche (plein largeur en mobile) */}
         <div className="w-100" style={{ maxWidth: 480 }}>
           <label className="visually-hidden" htmlFor="tplSearch">Rechercher</label>
           <div className="input-group">
@@ -101,32 +155,31 @@ export default function Templates() {
       </div>
 
       {/* Catégories (pills scrollables & contrastées) */}
-<nav className="mb-3">
-  <ul className="nav nav-pills gap-2 flex-nowrap overflow-auto pb-1 lu-catbar">
-    <li className="nav-item">
-      <button
-        type="button"
-        className={`nav-link ${activeCat === 'all' ? 'active' : ''}`}
-        onClick={() => setActiveCat('all')}
-      >
-        <i className="bi bi-stars me-1" aria-hidden="true" /> Tous
-      </button>
-    </li>
-    {categories.map((c) => (
-      <li className="nav-item" key={c.id}>
-        <button
-          type="button"
-          className={`nav-link ${String(activeCat) === String(c.id) ? 'active' : ''}`}
-          onClick={() => setActiveCat(c.id)}
-          title={c.name}
-        >
-          {c.name || `Catégorie ${c.id}`}
-        </button>
-      </li>
-    ))}
-  </ul>
-</nav>
-
+      <nav className="mb-3">
+        <ul className="nav nav-pills gap-2 flex-nowrap overflow-auto pb-1 lu-catbar">
+          <li className="nav-item">
+            <button
+              type="button"
+              className={`nav-link ${activeCat === 'all' ? 'active' : ''}`}
+              onClick={() => setActiveCat('all')}
+            >
+              <i className="bi bi-stars me-1" aria-hidden="true" /> Tous
+            </button>
+          </li>
+          {categories.map((c) => (
+            <li className="nav-item" key={c.id}>
+              <button
+                type="button"
+                className={`nav-link ${String(activeCat) === String(c.id) ? 'active' : ''}`}
+                onClick={() => setActiveCat(c.id)}
+                title={c.name}
+              >
+                {c.name || `Catégorie ${c.id}`}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* États */}
       {loading && (
@@ -137,7 +190,7 @@ export default function Templates() {
       )}
       {error && <div className="alert alert-danger">{error}</div>}
 
-      {/* Grille responsive : 1 col (xs), 2 (sm/md), 3 (lg+) */}
+      {/* Grille responsive */}
       {!loading && !error && (
         <>
           {filtered.length === 0 ? (
@@ -167,7 +220,7 @@ export default function Templates() {
                           {freq} · {t.base_xp ?? 0} XP
                         </div>
 
-                        {/* Description multi-ligne clampée (2 lignes) */}
+                        {/* Description clampée */}
                         {t.description && (
                           <p
                             className="card-text small text-muted mb-3"
@@ -176,7 +229,7 @@ export default function Templates() {
                               WebkitLineClamp: 2,
                               WebkitBoxOrient: 'vertical',
                               overflow: 'hidden',
-                              minHeight: '2.8em' // réserve 2 lignes env.
+                              minHeight: '2.8em'
                             }}
                             title={t.description}
                           >
@@ -184,7 +237,7 @@ export default function Templates() {
                           </p>
                         )}
 
-                        {/* CTA : bouton large en mobile, auto sur desktop */}
+                        {/* CTA */}
                         <div className="mt-auto d-grid">
                           <button
                             className="btn btn-primary"
