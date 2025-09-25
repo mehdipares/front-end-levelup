@@ -64,7 +64,7 @@ a { text-decoration: none; }
 
 /* Progress (général + XP) */
 .progress { background:#EEF2FF; border-radius: 8px; }
-.progress.xp { background: rgba(255,255,255,.25); height: 16px; border-radius: 999px; }
+.progress.xp { background: #EEF2FF; height: 16px; border-radius: 999px; }
 .progress.xp .progress-bar {
   background-image: linear-gradient(90deg, var(--brand-gold), #1E74FF);
   border-radius: 999px;
@@ -201,5 +201,20 @@ a { text-decoration: none; }
 
 /* CTA mobile flottant (si besoin) */
 .lu-fab { position: sticky; bottom: 12px; width: 100%; box-shadow: var(--lu-shadow-2); }
+/* --- Catégories pills (meilleure lisibilité + tactile) --- */
+.lu-catbar .nav-link{
+  border:1px solid rgba(var(--bs-primary-rgb), .18);
+  background:#f8fafc;
+  color:#0f172a;
+  padding:.44rem .9rem;            /* cible tactile confortable */
+  border-radius:999px;
+  white-space:nowrap;
+}
+.lu-catbar .nav-link:hover{ background:#eef2ff; }
+.lu-catbar .nav-link.active{
+  background:var(--bs-primary);
+  border-color:var(--bs-primary);
+  color:#fff;
+}
 
 /* Fin — LevelUp */

@@ -1,8 +1,9 @@
+// src/pages/Templates.jsx
 import React, { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 import { listTemplates } from '../api/goalTemplates'
 import { listCategories } from '../api/categories'
 import { addUserGoal } from '../api/goals'
-import { useAuth } from '../context/AuthContext'
 
 export default function Templates() {
   const { userId } = useAuth()
@@ -10,9 +11,9 @@ export default function Templates() {
   const [error, setError] = useState('')
   const [templates, setTemplates] = useState([])
   const [categories, setCategories] = useState([])
-  const [activeCat, setActiveCat] = useState('all') // 'all' | category_id
+  const [activeCat, setActiveCat] = useState('all')
+  const [search, setSearch] = useState('')
   const [addingId, setAddingId] = useState(null)
-  const [q, setQ] = useState('') // 🔎 recherche
 
   useEffect(() => {
     let alive = true
@@ -35,33 +36,22 @@ export default function Templates() {
     return () => { alive = false }
   }, [])
 
-  const byCat = useMemo(() => {
+  const catById = useMemo(() => {
     const m = new Map()
     for (const c of categories) m.set(String(c.id), c)
     return m
   }, [categories])
 
   const filtered = useMemo(() => {
-    // filtre catégorie
-    const base = activeCat === 'all'
-      ? templates
-      : templates.filter(t => String(t.category_id) === String(activeCat))
-
-    // filtre recherche (titre, description, nom catégorie, fréquence)
-    const query = q.trim().toLowerCase()
-    if (!query) return base
-
-    return base.filter(t => {
-      const cat = byCat.get(String(t.category_id))
-      const hay = [
-        t.title,
-        t.description,
-        t.frequency_type,
-        cat?.name
-      ].filter(Boolean).join(' ').toLowerCase()
-      return hay.includes(query)
+    const q = search.trim().toLowerCase()
+    return templates.filter(t => {
+      const inCat = activeCat === 'all' || String(t.category_id) === String(activeCat)
+      if (!inCat) return false
+      if (!q) return true
+      const hay = `${t.title ?? ''} ${(t.description ?? '')} ${(t.frequency_type ?? '')} ${(catById.get(String(t.category_id))?.name ?? '')}`.toLowerCase()
+      return hay.includes(q)
     })
-  }, [templates, activeCat, q, byCat])
+  }, [templates, activeCat, search, catById])
 
   const onAdd = async (t) => {
     try {
@@ -76,107 +66,152 @@ export default function Templates() {
     }
   }
 
-  // ---- Styles minimalistes pour les “pills” + input ----
-  const pill = (active) => ({
-    padding: '8px 14px',
-    borderRadius: 999,
-    border: active ? '2px solid #2b6df2' : '2px solid transparent',
-    background: active ? '#eaf2ff' : '#f1f7ff',
-    color: '#1f2a37',
-    cursor: 'pointer',
-    userSelect: 'none',
-    boxShadow: active ? '0 0 0 2px rgba(43,109,242,0.15) inset' : 'none'
-  })
-  const inputStyle = {
-    padding: '8px 12px',
-    borderRadius: 8,
-    border: '1px solid #d1d5db',
-    outline: 'none',
-    minWidth: 220
-  }
-
-  if (loading) return <p>Chargement…</p>
-  if (error) return <p style={{ color: 'crimson' }}>{error}</p>
-
   return (
-    <div>
-      <div style={{ display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap' }}>
-        <h2 style={{ margin: 0 }}>Templates d’objectifs</h2>
-        <small style={{ color:'#6b7280' }}>{filtered.length} / {templates.length}</small>
-        <div style={{ marginLeft:'auto' }}>
-          <input
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Rechercher…"
-            style={inputStyle}
-          />
+    <div className="container py-3">
+      {/* Titre + compteur + recherche (stack mobile, aligné sur desktop) */}
+      <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-3 mb-3">
+        <div className="flex-grow-1">
+          <h2 className="mb-1">Templates d’objectifs</h2>
+          <div className="text-muted small">{filtered.length}/{templates.length} visibles</div>
+        </div>
+
+        {/* Barre de recherche (plein largeur en mobile) */}
+        <div className="w-100" style={{ maxWidth: 480 }}>
+          <label className="visually-hidden" htmlFor="tplSearch">Rechercher</label>
+          <div className="input-group">
+            <span className="input-group-text" id="tplSearchIcon">
+              <i className="bi bi-search" aria-hidden="true" />
+            </span>
+            <input
+              id="tplSearch"
+              type="search"
+              className="form-control"
+              placeholder="Rechercher un template…"
+              aria-describedby="tplSearchIcon"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="btn btn-outline-secondary" onClick={() => setSearch('')}>
+                Effacer
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Barre de catégories */}
-      <div style={{
-        display: 'flex',
-        gap: 10,
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        margin: '12px 0 20px'
-      }}>
+      {/* Catégories (pills scrollables & contrastées) */}
+<nav className="mb-3">
+  <ul className="nav nav-pills gap-2 flex-nowrap overflow-auto pb-1 lu-catbar">
+    <li className="nav-item">
+      <button
+        type="button"
+        className={`nav-link ${activeCat === 'all' ? 'active' : ''}`}
+        onClick={() => setActiveCat('all')}
+      >
+        <i className="bi bi-stars me-1" aria-hidden="true" /> Tous
+      </button>
+    </li>
+    {categories.map((c) => (
+      <li className="nav-item" key={c.id}>
         <button
-          style={pill(activeCat === 'all')}
-          onClick={() => setActiveCat('all')}
+          type="button"
+          className={`nav-link ${String(activeCat) === String(c.id) ? 'active' : ''}`}
+          onClick={() => setActiveCat(c.id)}
+          title={c.name}
         >
-          tous
+          {c.name || `Catégorie ${c.id}`}
         </button>
-        {categories.map(c => (
-          <button
-            key={c.id}
-            style={pill(String(activeCat) === String(c.id))}
-            onClick={() => setActiveCat(c.id)}
-          >
-            {c.name || `Catégorie ${c.id}`}
-          </button>
-        ))}
-      </div>
+      </li>
+    ))}
+  </ul>
+</nav>
 
-      {/* Liste filtrée des templates */}
-      {filtered.length === 0 ? (
-        <p>Aucun template ne correspond à ta recherche.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 10 }}>
-          {filtered.map(t => {
-            const cat = byCat.get(String(t.category_id))
-            const enabled = t.enabled !== false
-            return (
-              <li key={t.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {t.title}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#475569' }}>
-                      {(cat?.name ? `${cat.name} · ` : '')}
-                      {(t.frequency_type || 'daily')} · {t.base_xp ?? 0} XP
-                    </div>
-                    {t.description && (
-                      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                        {t.description}
+
+      {/* États */}
+      {loading && (
+        <div className="d-flex align-items-center gap-2 my-4">
+          <div className="spinner-border" role="status" aria-hidden="true"></div>
+          <strong>Chargement…</strong>
+        </div>
+      )}
+      {error && <div className="alert alert-danger">{error}</div>}
+
+      {/* Grille responsive : 1 col (xs), 2 (sm/md), 3 (lg+) */}
+      {!loading && !error && (
+        <>
+          {filtered.length === 0 ? (
+            <div className="alert alert-info">
+              Aucun template ne correspond à votre recherche/catégorie.
+            </div>
+          ) : (
+            <div className="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+              {filtered.map(t => {
+                const cat = catById.get(String(t.category_id))
+                const enabled = t.enabled !== false
+                const freq = (t.frequency_type || 'daily').toLowerCase()
+
+                return (
+                  <div key={t.id} className="col">
+                    <div className="card h-100">
+                      <div className="card-body d-flex flex-column">
+                        {/* Titre + état */}
+                        <div className="d-flex align-items-start justify-content-between mb-1">
+                          <h6 className="card-title mb-1 text-truncate" title={t.title}>{t.title}</h6>
+                          {!enabled && <span className="badge text-bg-secondary ms-2">Off</span>}
+                        </div>
+
+                        {/* Métadonnées */}
+                        <div className="mb-2 small text-muted">
+                          {(cat?.name ? `${cat.name} · ` : '')}
+                          {freq} · {t.base_xp ?? 0} XP
+                        </div>
+
+                        {/* Description multi-ligne clampée (2 lignes) */}
+                        {t.description && (
+                          <p
+                            className="card-text small text-muted mb-3"
+                            style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              minHeight: '2.8em' // réserve 2 lignes env.
+                            }}
+                            title={t.description}
+                          >
+                            {t.description}
+                          </p>
+                        )}
+
+                        {/* CTA : bouton large en mobile, auto sur desktop */}
+                        <div className="mt-auto d-grid">
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => onAdd(t)}
+                            disabled={!enabled || addingId === t.id}
+                            title={!enabled ? 'Template désactivé' : 'Ajouter à mes objectifs'}
+                          >
+                            {addingId === t.id ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Ajout…
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-plus-lg me-1" /> Ajouter
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
-
-                  <button
-                    onClick={() => onAdd(t)}
-                    disabled={!enabled || addingId === t.id}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #2563eb', background: '#2563eb', color: 'white' }}
-                    title={!enabled ? 'Template désactivé' : 'Ajouter à mes objectifs'}
-                  >
-                    {addingId === t.id ? 'Ajout…' : 'Ajouter'}
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
