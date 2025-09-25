@@ -12,6 +12,8 @@ import Goals from './pages/Goals'
 import Templates from './pages/Templates'
 import Profile from './pages/Profile'
 import CustomGoal from './pages/CustomGoal'
+import Welcome from './pages/Welcome'
+
 
 import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './context/AuthContext'
@@ -36,6 +38,8 @@ export default function App() {
           <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/custom-goal" element={<ProtectedRoute><CustomGoal /></ProtectedRoute>} />
+          <Route path="/welcome" element={<ProtectedRoute><Welcome /></ProtectedRoute>} />
+
 
           {/* 404 → Accueil */}
           <Route path="*" element={<Navigate to="/" replace />} />
