@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getUser, getPriorities } from '../api/users'
 import { getTodayQuote } from '../api/quotes'
@@ -156,10 +157,10 @@ export default function Dashboard() {
           {!goals.length ? (
             <div className="text-center">
               <div className="alert alert-light border mb-2">Aucun objectif actif.</div>
-              {/* 👉 CTA vers Templates quand il n'y a aucun objectif */}
-              <a href="/templates" className="btn btn-primary">
+              {/* 👉 CTA vers Templates quand il n'y a aucun objectif (SPA) */}
+              <Link to="/templates" className="btn btn-primary" role="button">
                 Ajouter des objectifs
-              </a>
+              </Link>
             </div>
           ) : (
             <>
@@ -190,22 +191,22 @@ export default function Dashboard() {
                 })}
               </div>
 
-              {/* 👉 CTA toujours visible sous la liste : ajouter + (manage sur desktop) */}
+              {/* 👉 CTA sous la liste en SPA */}
               <div className="d-grid d-sm-flex gap-2 mt-3">
-                <a href="/templates" className="btn btn-outline-primary flex-fill">
+                <Link to="/templates" className="btn btn-outline-primary flex-fill" role="button">
                   Ajouter des objectifs
-                </a>
-                <a href="/goals" className="btn btn-primary d-none d-md-inline-flex">
+                </Link>
+                <Link to="/goals" className="btn btn-primary d-none d-md-inline-flex" role="button">
                   Gérer mes objectifs
-                </a>
+                </Link>
               </div>
             </>
           )}
 
-          {/* Bouton "Gérer mes objectifs" pour MOBILE (déjà présent) */}
-          <a href="/goals" className="btn btn-primary w-100 d-md-none mt-3">
+          {/* Bouton "Gérer mes objectifs" pour MOBILE (SPA) */}
+          <Link to="/goals" className="btn btn-primary w-100 d-md-none mt-3" role="button">
             gérer mes objectifs
-          </a>
+          </Link>
         </div>
 
         {/* PRIORITÉS — carte violette, items transparents */}
@@ -218,9 +219,9 @@ export default function Dashboard() {
                 <div className="alert alert-info mb-0">
                   Pas de priorités calculées pour l’instant.
                   <div className="mt-2">
-                    <a className="btn btn-sm btn-outline-primary" href="/onboarding">
+                    <Link className="btn btn-sm btn-outline-primary" to="/onboarding" role="button">
                       Commencer l’onboarding
-                    </a>
+                    </Link>
                   </div>
                 </div>
               ) : (
