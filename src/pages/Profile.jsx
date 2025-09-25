@@ -1,3 +1,4 @@
+// src/pages/Profile.jsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getUser, getPriorities, updateUser } from '../api/users'
@@ -110,7 +111,7 @@ export default function Profile() {
       .slice(0,5)
       .map(([cid, count]) => ({ id: cid, name: catName.get(cid) || `Catégorie ${cid}`, count }))
 
-    // Prochaines échéances (best effort)
+    // Prochaines échéances
     const nextUp = goals
       .filter(g => g.status === 'active')
       .map(g => ({
@@ -120,7 +121,10 @@ export default function Profile() {
       .slice(0, 5)
       .map(x => x.g)
 
-    return { total, active, archived, daily, weekly, eligibleToday, topCats, nextUp }
+    // pour barres %
+    const maxCount = topCats.reduce((m, c) => Math.max(m, c.count), 0) || 1
+
+    return { total, active, archived, daily, weekly, eligibleToday, topCats, nextUp, maxCount }
   }, [goals, catName])
 
   // Progression XP
@@ -147,87 +151,212 @@ export default function Profile() {
     }
   }
 
-  if (loading) return <p>Chargement…</p>
-  if (error) return <p style={{ color:'crimson' }}>{error}</p>
-  if (!user) return <p>Utilisateur introuvable.</p>
+  if (loading) {
+    return (
+      <div className="d-flex align-items-center gap-2">
+        <div className="spinner-border" role="status" aria-hidden="true" />
+        <strong>Chargement…</strong>
+      </div>
+    )
+  }
+  if (error) return <div className="alert alert-danger">{error}</div>
+  if (!user) return <div className="alert alert-warning">Utilisateur introuvable.</div>
 
   return (
-    <div>
-      <h2>Profil</h2>
-
-      {/* Bloc XP */}
-      <div>
-        <div>Niveau <b>{level}</b> — {xp} XP</div>
-        <div style={{ height: 10, background: '#eee', borderRadius: 6, overflow: 'hidden', margin: '6px 0' }}>
-          <div style={{ width: `${percent}%`, height: '100%', background: '#4caf50' }} />
-        </div>
-        <small>Prochain niveau : {current}/{span} ({percent}%) — reste {toNext} XP</small>
+    <div className="container py-3">
+      {/* Titre */}
+      <div className="d-flex align-items-baseline justify-content-between mb-3">
+        <h2 className="mb-0">Profil</h2>
+        <span className="badge text-bg-primary">Niveau {level}</span>
       </div>
 
-      <hr />
-
-      {/* Stats objectifs */}
-      <h3>Statistiques</h3>
-      <ul>
-        <li>Total objectifs : <b>{stats.total}</b></li>
-        <li>Actifs : <b>{stats.active}</b> — Archivés : <b>{stats.archived}</b></li>
-        <li>Cadence — Daily : <b>{stats.daily}</b> · Weekly : <b>{stats.weekly}</b></li>
-        <li>Éligibles aujourd’hui : <b>{stats.eligibleToday}</b></li>
-      </ul>
-
-      <h4>Catégories les plus utilisées</h4>
-      {stats.topCats.length === 0 ? (
-        <p>Aucune catégorie (ajoute des objectifs pour voir des stats).</p>
-      ) : (
-        <ol>
-          {stats.topCats.map(c => (
-            <li key={c.id}>{c.name} — {c.count}</li>
-          ))}
-        </ol>
-      )}
-
-      <h4>Prochaines échéances</h4>
-      {!stats.nextUp.length ? (
-        <p>Aucune échéance connue.</p>
-      ) : (
-        <ul>
-          {stats.nextUp.map(g => (
-            <li key={g.id}>{titleOf(g)} {g.next_eligible_at ? `— dès ${new Date(g.next_eligible_at).toLocaleString()}` : ''}</li>
-          ))}
-        </ul>
-      )}
-
-      <h4>Priorités</h4>
-      {!priorities.length ? (
-        <p>Pas de priorités calculées. Lance l’onboarding pour en obtenir.</p>
-      ) : (
-        <ol>
-          {priorities.map((p, i) => (
-            <li key={`${p.category_id}-${i}`}>
-              {p.Category?.name ?? p.category_name ?? `Catégorie ${p.category_id}`} — score {typeof p.score === 'number' ? p.score : (p.score_value ?? 0)}
-            </li>
-          ))}
-        </ol>
-      )}
-
-      <hr />
-
-      {/* Édition profil */}
-      <h3>Modifier le profil</h3>
-      <form onSubmit={onSave} style={{ maxWidth: 420, display: 'grid', gap: 8 }}>
-        <label>
-          Pseudo
-          <input value={username} onChange={e => setUsername(e.target.value)} />
-        </label>
-        <label>
-          Email
-          <input value={email} onChange={e => setEmail(e.target.value)} />
-        </label>
-        <div>
-          <button type="submit" disabled={saving}>{saving ? '…' : 'Enregistrer'}</button>
-          {saveMsg && <span style={{ marginLeft: 8, color: 'green' }}>{saveMsg}</span>}
+      {/* Bandeau XP */}
+      <div className="lu-hero mb-4">
+        <div className="lu-hero-caption">
+          <span>Progression vers le niveau {level + 1}</span>
+          <span>{current}/{span} ({percent}%)</span>
         </div>
-      </form>
+        <div className="progress xp" role="progressbar" aria-valuenow={percent} aria-valuemin="0" aria-valuemax="100">
+          <div className="progress-bar" style={{ width: `${percent}%` }} />
+        </div>
+        <div className="d-flex justify-content-between mt-2 small">
+          <span className="badge text-bg-light">{xp} XP total</span>
+          <span className="text-white-50">Reste {toNext} XP</span>
+        </div>
+      </div>
+
+      <div className="row g-3">
+        {/* Colonne gauche: Édition profil + Statistiques clés */}
+        <div className="col-12 col-lg-6">
+          {/* Formulaire profil */}
+          <div className="card lu-card mb-3">
+            <div className="card-body">
+              <h5 className="card-title mb-3">Informations du compte</h5>
+
+              <form onSubmit={onSave} className="vstack gap-3" style={{ maxWidth: 480 }}>
+                <div>
+                  <label className="form-label">Pseudo</label>
+                  <div className="input-group">
+                    <span className="input-group-text"><i className="bi bi-person" /></span>
+                    <input
+                      className="form-control"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      placeholder="Ton pseudo"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">Email</label>
+                  <div className="input-group">
+                    <span className="input-group-text"><i className="bi bi-envelope" /></span>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="email@exemple.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="d-flex align-items-center gap-2">
+                  <button className="btn btn-primary" type="submit" disabled={saving}>
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
+                        Enregistrement…
+                      </>
+                    ) : 'Enregistrer'}
+                  </button>
+                  {saveMsg && <span className="text-success">{saveMsg}</span>}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Statistiques clés */}
+          <div className="card lu-card">
+            <div className="card-body">
+              <h5 className="card-title mb-3">Statistiques</h5>
+
+              <div className="row g-2 mb-3">
+                <div className="col-6">
+                  <div className="p-3 border-soft rounded-2xl text-center">
+                    <div className="text-muted small">Total objectifs</div>
+                    <div className="fs-5 fw-bold">{stats.total}</div>
+                  </div>
+                </div>
+                <div className="col-6">
+                  <div className="p-3 border-soft rounded-2xl text-center">
+                    <div className="text-muted small">Actifs</div>
+                    <div className="fs-5 fw-bold">{stats.active}</div>
+                  </div>
+                </div>
+                <div className="col-6">
+                  <div className="p-3 border-soft rounded-2xl text-center">
+                    <div className="text-muted small">Archivés</div>
+                    <div className="fs-5 fw-bold">{stats.archived}</div>
+                  </div>
+                </div>
+                <div className="col-6">
+                  <div className="p-3 border-soft rounded-2xl text-center">
+                    <div className="text-muted small">Éligibles aujourd’hui</div>
+                    <div className="fs-5 fw-bold">{stats.eligibleToday}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="d-flex gap-2 flex-wrap">
+                <span className="lu-chip">Daily: {stats.daily}</span>
+                <span className="lu-chip">Weekly: {stats.weekly}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Colonne droite: Catégories, Prochaines échéances, Priorités */}
+        <div className="col-12 col-lg-6">
+          {/* Catégories top */}
+          <div className="card lu-card mb-3">
+            <div className="card-body">
+              <h5 className="card-title mb-3">Catégories les plus utilisées</h5>
+              {stats.topCats.length === 0 ? (
+                <div className="alert alert-info mb-0">Aucune catégorie (ajoute des objectifs pour voir des stats).</div>
+              ) : (
+                <ul className="list-group list-group-flush">
+                  {stats.topCats.map(c => {
+                    const pct = Math.round((c.count / stats.maxCount) * 100)
+                    return (
+                      <li key={c.id} className="list-group-item">
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <strong className="text-truncate">{c.name}</strong>
+                          <span className="badge text-bg-secondary">{c.count}</span>
+                        </div>
+                        <div className="lu-meter">
+                          <div className="lu-meter-fill" style={{ '--w': `${pct}%` }} />
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Prochaines échéances */}
+          <div className="card lu-card mb-3">
+            <div className="card-body">
+              <h5 className="card-title mb-3">Prochaines échéances</h5>
+              {!stats.nextUp.length ? (
+                <div className="alert alert-light mb-0">Aucune échéance connue.</div>
+              ) : (
+                <ul className="list-group list-group-flush">
+                  {stats.nextUp.map(g => (
+                    <li key={g.id} className="list-group-item d-flex justify-content-between align-items-center">
+                      <div className="text-truncate">
+                        <i className="bi bi-calendar-check me-2" />
+                        {titleOf(g)}
+                      </div>
+                      {g.next_eligible_at && (
+                        <small className="text-muted">
+                          {new Date(g.next_eligible_at).toLocaleString()}
+                        </small>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Priorités (fond violet doux) */}
+          <div className="card lu-prio">
+            <div className="card-body">
+              <h5 className="card-title mb-3">Priorités</h5>
+              {!priorities.length ? (
+                <div className="alert alert-light mb-0">
+                  Pas de priorités calculées. Lance l’onboarding pour en obtenir.
+                </div>
+              ) : (
+                <ul className="list-group list-group-flush">
+                  {priorities.map((p, i) => {
+                    const name = p.Category?.name ?? p.category_name ?? `Catégorie ${p.category_id}`
+                    const score = typeof p.score === 'number' ? p.score : (p.score_value ?? 0)
+                    return (
+                      <li key={`${p.category_id}-${i}`} className="list-group-item d-flex justify-content-between align-items-center" style={{ background:'transparent' }}>
+                        <span className="text-truncate">{name}</span>
+                        <span className="badge text-bg-light">{score}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
