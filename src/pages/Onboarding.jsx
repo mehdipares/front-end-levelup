@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getQuestions, submitAnswers } from '../api/onboarding'
-import { getUser } from '../api/users' // 👈 ajout pour vérifier onboarding_done
 
 export default function Onboarding() {
   const { userId } = useAuth()
@@ -16,11 +15,11 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Charge les questions (si le back renvoie 409 = déjà fait, on file au dashboard)
   useEffect(() => {
     let alive = true
     ;(async () => {
-      setLoading(true)
-      setError('')
+      setLoading(true); setError('')
       try {
         const data = await getQuestions(userId, 'fr')
         const qs = (data?.items ?? data?.questions ?? [])
@@ -45,29 +44,20 @@ export default function Onboarding() {
   const total = questions.length
   const current = questions[step]
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers])
-  const stepPercent = useMemo(() => total ? Math.round(((step + 1) / total) * 100) : 0, [step, total])
+  const stepPercent = useMemo(
+    () => (total ? Math.round(((step + 1) / total) * 100) : 0),
+    [step, total]
+  )
 
   const setValue = (qid, value) => setAnswers(prev => ({ ...prev, [qid]: value }))
   const next = () => { if (step < total - 1) setStep(s => s + 1) }
   const prev = () => { if (step > 0) setStep(s => s - 1) }
 
-  // 🔁 Attendre que onboarding_done soit bien à true en BDD (anti “rebond” ProtectedRoute)
-  async function waitForOnboardingDone(tries = 6, delayMs = 300) {
-    for (let i = 0; i < tries; i++) {
-      try {
-        const u = await getUser(userId)
-        if (u?.onboarding_done) return true
-      } catch { /* ignore */ }
-      await new Promise(r => setTimeout(r, delayMs))
-    }
-    return false
-  }
-
+  // Soumission finale → on envoie au back, puis on VA DIRECTEMENT sur /welcome
   const onSubmit = async (e) => {
     e.preventDefault()
     if (answeredCount !== total) return
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true); setError('')
     try {
       const list = Object.entries(answers).map(([qid, val]) => ({
         question_id: Number(qid),
@@ -75,11 +65,8 @@ export default function Onboarding() {
       }))
       await submitAnswers(userId, list, 'fr')
 
-      // ✅ on attend la bascule onboarding_done côté serveur (quelques courts essais)
-      await waitForOnboardingDone()
-
-      // puis redirection Dashboard
-      navigate('/dashboard', { replace: true })
+      // 🔁 Pas de “wait” : on redirige sur /welcome, le temps que la BDD bascule.
+      navigate('/welcome', { replace: true })
     } catch (e2) {
       setError(e2?.response?.data?.error || 'Erreur lors de la soumission')
     } finally {
@@ -87,6 +74,7 @@ export default function Onboarding() {
     }
   }
 
+  // Raccourcis clavier (1..5, ← →)
   const handleKey = useCallback((e) => {
     if (!current) return
     if (e.key >= '1' && e.key <= '5') {
@@ -97,7 +85,6 @@ export default function Onboarding() {
       prev()
     }
   }, [current, answers])
-
   useEffect(() => {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
@@ -138,11 +125,17 @@ export default function Onboarding() {
     )
   }
 
-  const answered = answers[current?.id] != null
+  // Garde-fou (rare) si step out-of-range
+  if (!current) {
+    setStep(0)
+    return <div className="container py-5 text-center">Préparation du questionnaire…</div>
+  }
+
+  const answered = answers[current.id] != null
 
   return (
     <div className="container py-4" style={{ maxWidth: 760 }}>
-      {/* Header + progression */}
+      {/* Entête + progression */}
       <div className="mb-3">
         <div className="d-flex align-items-center justify-content-between gap-2">
           <div>
@@ -158,11 +151,11 @@ export default function Onboarding() {
         </div>
       </div>
 
-      {/* Carte */}
+      {/* Carte question */}
       <form onSubmit={onSubmit}>
         <div className="card lu-card shadow-sm">
           <div className="card-body p-4">
-            <p className="fs-5 fw-semibold mb-3">{current?.question}</p>
+            <p className="fs-5 fw-semibold mb-3">{current.question}</p>
 
             <div className="d-flex flex-wrap gap-2">
               {[1,2,3,4,5].map((v) => {

@@ -154,36 +154,55 @@ export default function Dashboard() {
           </div>
 
           {!goals.length ? (
-            <div className="alert alert-light border mb-0">Aucun objectif actif.</div>
-          ) : (
-            <div className="lu-goal-group">
-              {goals.map((g) => {
-                const eligible = isEligibleToday(g)
-                return (
-                  <div key={g.id} className="lu-goal-card">
-                    <div className="lu-goal-left">
-                      <span className="lu-ico">{goalEmoji(g)}</span>
-                      <span className="fw-semibold text-truncate">{titleOf(g)}</span>
-                    </div>
-                    <button
-                      className={`btn btn-sm ${eligible ? 'btn-success' : 'btn-secondary'} lu-pill-btn`}
-                      onClick={() => handleComplete(g)}
-                      disabled={!eligible || doingId === g.id}
-                      title={eligible ? 'Valider' : 'Indisponible pour le moment'}
-                    >
-                      {doingId === g.id ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                          Validation…
-                        </>
-                      ) : (eligible ? 'Valider' : 'Indispo')}
-                    </button>
-                  </div>
-                )
-              })}
+            <div className="text-center">
+              <div className="alert alert-light border mb-2">Aucun objectif actif.</div>
+              {/* 👉 CTA vers Templates quand il n'y a aucun objectif */}
+              <a href="/templates" className="btn btn-primary">
+                Ajouter des objectifs
+              </a>
             </div>
+          ) : (
+            <>
+              <div className="lu-goal-group">
+                {goals.map((g) => {
+                  const eligible = isEligibleToday(g)
+                  return (
+                    <div key={g.id} className="lu-goal-card">
+                      <div className="lu-goal-left">
+                        <span className="lu-ico">{goalEmoji(g)}</span>
+                        <span className="fw-semibold text-truncate">{titleOf(g)}</span>
+                      </div>
+                      <button
+                        className={`btn btn-sm ${eligible ? 'btn-success' : 'btn-secondary'} lu-pill-btn`}
+                        onClick={() => handleComplete(g)}
+                        disabled={!eligible || doingId === g.id}
+                        title={eligible ? 'Valider' : 'Indisponible pour le moment'}
+                      >
+                        {doingId === g.id ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Validation…
+                          </>
+                        ) : (eligible ? 'Valider' : 'Indispo')}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* 👉 CTA toujours visible sous la liste : ajouter + (manage sur desktop) */}
+              <div className="d-grid d-sm-flex gap-2 mt-3">
+                <a href="/templates" className="btn btn-outline-primary flex-fill">
+                  Ajouter des objectifs
+                </a>
+                <a href="/goals" className="btn btn-primary d-none d-md-inline-flex">
+                  Gérer mes objectifs
+                </a>
+              </div>
+            </>
           )}
 
+          {/* Bouton "Gérer mes objectifs" pour MOBILE (déjà présent) */}
           <a href="/goals" className="btn btn-primary w-100 d-md-none mt-3">
             gérer mes objectifs
           </a>
@@ -209,7 +228,7 @@ export default function Dashboard() {
                   {priorities.map((p, idx) => {
                     const name  = p.Category?.name ?? p.category_name ?? `Catégorie ${p.category_id}`
                     const score = Number(p.score ?? p.score_value ?? 0)
-                    const w = Math.max(0, Math.min(100, Math.round((score / Math.max(1, ...scores)) * 100)))
+                    const w = Math.max(0, Math.min(100, Math.round((score / maxScore) * 100)))
                     return (
                       <li key={`${p.category_id}-${idx}`} className="list-group-item">
                         <div className="d-flex justify-content-between align-items-center mb-1">
