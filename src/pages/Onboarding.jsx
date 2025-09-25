@@ -1,16 +1,20 @@
-import React, { useEffect, useState } from 'react'
+// src/pages/Onboarding.jsx
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getQuestions, submitAnswers } from '../api/onboarding'
+import { getUser } from '../api/users' // 👈 ajout pour vérifier onboarding_done
 
 export default function Onboarding() {
   const { userId } = useAuth()
+  const navigate = useNavigate()
+
   const [loading, setLoading] = useState(true)
   const [questions, setQuestions] = useState([])
-  const [answers, setAnswers] = useState({}) // { [id]: number }
+  const [answers, setAnswers] = useState({})
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
-  const navigate = useNavigate()
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -19,19 +23,14 @@ export default function Onboarding() {
       setError('')
       try {
         const data = await getQuestions(userId, 'fr')
-        // le back renvoie data.items (ou parfois data.questions) :
         const qs = (data?.items ?? data?.questions ?? [])
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-
-        if (alive) {
-          setQuestions(qs)
-          setStep(0) // reset du step si on recharge
-          // console.debug('[Onboarding] fetched', { count: qs.length, sample: qs[0] })
-        }
+        if (!alive) return
+        setQuestions(qs)
+        setStep(0)
       } catch (e) {
         if (e?.response?.status === 409) {
-          // déjà fait => go dashboard
           navigate('/dashboard', { replace: true })
           return
         }
@@ -45,92 +44,185 @@ export default function Onboarding() {
 
   const total = questions.length
   const current = questions[step]
+  const answeredCount = useMemo(() => Object.keys(answers).length, [answers])
+  const stepPercent = useMemo(() => total ? Math.round(((step + 1) / total) * 100) : 0, [step, total])
 
-  const setValue = (qid, value) => {
-    setAnswers(prev => ({ ...prev, [qid]: value }))
-  }
+  const setValue = (qid, value) => setAnswers(prev => ({ ...prev, [qid]: value }))
+  const next = () => { if (step < total - 1) setStep(s => s + 1) }
+  const prev = () => { if (step > 0) setStep(s => s - 1) }
 
-  const next = () => {
-    if (step < total - 1) setStep(s => s + 1)
-  }
-  const prev = () => {
-    if (step > 0) setStep(s => s - 1)
+  // 🔁 Attendre que onboarding_done soit bien à true en BDD (anti “rebond” ProtectedRoute)
+  async function waitForOnboardingDone(tries = 6, delayMs = 300) {
+    for (let i = 0; i < tries; i++) {
+      try {
+        const u = await getUser(userId)
+        if (u?.onboarding_done) return true
+      } catch { /* ignore */ }
+      await new Promise(r => setTimeout(r, delayMs))
+    }
+    return false
   }
 
   const onSubmit = async (e) => {
     e.preventDefault()
+    if (answeredCount !== total) return
+    setSubmitting(true)
+    setError('')
     try {
-      // ⚠️ Le backend attend { question_id, value }
       const list = Object.entries(answers).map(([qid, val]) => ({
         question_id: Number(qid),
         value: Number(val)
       }))
       await submitAnswers(userId, list, 'fr')
+
+      // ✅ on attend la bascule onboarding_done côté serveur (quelques courts essais)
+      await waitForOnboardingDone()
+
+      // puis redirection Dashboard
       navigate('/dashboard', { replace: true })
-    } catch (e) {
-      setError(e?.response?.data?.error || 'Erreur lors de la soumission')
+    } catch (e2) {
+      setError(e2?.response?.data?.error || 'Erreur lors de la soumission')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  if (loading) return <p>Chargement du questionnaire…</p>
-  if (error) return <p style={{ color:'crimson' }}>{error}</p>
+  const handleKey = useCallback((e) => {
+    if (!current) return
+    if (e.key >= '1' && e.key <= '5') {
+      setValue(current.id, Number(e.key))
+    } else if (e.key === 'ArrowRight') {
+      if (answers[current.id] != null) next()
+    } else if (e.key === 'ArrowLeft') {
+      prev()
+    }
+  }, [current, answers])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [handleKey])
+
+  if (loading) {
+    return (
+      <div className="container py-5 text-center">
+        <div className="spinner-border" role="status" aria-hidden="true" />
+        <div className="mt-2 fw-semibold">Chargement du questionnaire…</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="container py-5">
+        <div className="alert alert-danger d-flex align-items-center">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          <div>{error}</div>
+        </div>
+        <button className="btn btn-outline-primary" onClick={() => navigate('/dashboard', { replace: true })}>
+          Revenir au dashboard
+        </button>
+      </div>
+    )
+  }
 
   if (!total) {
     return (
-      <div>
-        <h2>Onboarding</h2>
-        <p>Aucune question disponible pour le moment.</p>
-        <button onClick={() => navigate('/dashboard', { replace: true })}>
+      <div className="container py-5 text-center">
+        <h2 className="fw-bold mb-1">Onboarding</h2>
+        <p className="text-muted">Aucune question disponible pour le moment.</p>
+        <button className="btn btn-primary" onClick={() => navigate('/dashboard', { replace: true })}>
           Passer et aller au Dashboard
         </button>
       </div>
     )
   }
 
-  // garde-fou si step hors bornes (rare)
-  if (!current) {
-    setStep(0)
-    return <p>Préparation du questionnaire…</p>
-  }
-
-  const answered = answers[current.id] != null
+  const answered = answers[current?.id] != null
 
   return (
-    <div>
-      <h2>Onboarding</h2>
-      <p>Question {step + 1} / {total}</p>
+    <div className="container py-4" style={{ maxWidth: 760 }}>
+      {/* Header + progression */}
+      <div className="mb-3">
+        <div className="d-flex align-items-center justify-content-between gap-2">
+          <div>
+            <h2 className="fw-bold mb-1">Onboarding</h2>
+            <div className="text-muted">Question <b>{step + 1}</b> / {total}</div>
+          </div>
+          <span className="badge rounded-pill text-bg-primary">
+            {Math.max(answeredCount, step + 1)}/{total}
+          </span>
+        </div>
+        <div className="progress xp mt-2" role="progressbar" aria-valuenow={stepPercent} aria-valuemin="0" aria-valuemax="100" style={{ height: 12 }}>
+          <div className="progress-bar" style={{ width: `${stepPercent}%` }} />
+        </div>
+      </div>
 
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 16, maxWidth: 520 }}>
-        <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-          <p style={{ marginBottom: 8 }}>{current.question}</p>
-          <div style={{ display: 'flex', gap: 12 }}>
-            {[1,2,3,4,5].map(v => (
-              <label key={v} style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <input
-                  type="radio"
-                  name={`q_${current.id}`}
-                  value={v}
-                  checked={Number(answers[current.id] || 0) === v}
-                  onChange={() => setValue(current.id, v)}
-                />
-                {v}
-              </label>
-            ))}
+      {/* Carte */}
+      <form onSubmit={onSubmit}>
+        <div className="card lu-card shadow-sm">
+          <div className="card-body p-4">
+            <p className="fs-5 fw-semibold mb-3">{current?.question}</p>
+
+            <div className="d-flex flex-wrap gap-2">
+              {[1,2,3,4,5].map((v) => {
+                const inputId = `q_${current.id}_${v}`
+                const checked = Number(answers[current.id] || 0) === v
+                return (
+                  <div key={v} className="form-check form-check-inline">
+                    <input
+                      className="btn-check"
+                      type="radio"
+                      name={`q_${current.id}`}
+                      id={inputId}
+                      value={v}
+                      checked={checked}
+                      onChange={() => setValue(current.id, v)}
+                    />
+                    <label className={`btn ${checked ? 'btn-primary' : 'btn-outline-primary'}`} htmlFor={inputId} style={{ minWidth: 48 }}>
+                      {v}
+                    </label>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="small text-muted mt-2">
+              1 = Pas du tout d’accord · 5 = Tout à fait d’accord
+            </div>
+
+            <div className="d-flex justify-content-between align-items-center mt-4">
+              <button type="button" className="btn btn-outline-secondary" onClick={prev} disabled={step === 0}>
+                <i className="bi bi-arrow-left me-1" /> Précédent
+              </button>
+
+              {step < total - 1 ? (
+                <button type="button" className="btn btn-primary" onClick={next} disabled={!answered}>
+                  Suivant <i className="bi bi-arrow-right ms-1" />
+                </button>
+              ) : (
+                <button type="submit" className="btn btn-success" disabled={answeredCount !== total || submitting}>
+                  {submitting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
+                      Envoi…
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-check2-circle me-1" />
+                      Terminer
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        <div style={{ display:'flex', gap:8 }}>
-          <button type="button" onClick={prev} disabled={step === 0}>Précédent</button>
-
-          {step < total - 1 ? (
-            <button type="button" onClick={next} disabled={!answered}>Suivant</button>
-          ) : (
-            <button type="submit" disabled={Object.keys(answers).length !== total}>
-              Terminer
-            </button>
-          )}
-        </div>
       </form>
+
+      <div className="text-center text-muted small mt-3">
+        Astuce : <kbd>1</kbd>…<kbd>5</kbd> pour répondre, <kbd>←</kbd>/<kbd>→</kbd> pour naviguer.
+      </div>
     </div>
   )
 }

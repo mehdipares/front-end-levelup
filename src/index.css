@@ -216,5 +216,16 @@ a { text-decoration: none; }
   border-color:var(--bs-primary);
   color:#fff;
 }
+/* --- Home hero responsive tweaks --- */
+.home-hero-title { font-size: 2.25rem; line-height: 1.15; }
+.home-hero-lead  { font-size: 1.05rem; }
+
+@media (min-width: 576px){
+  .home-hero-title { font-size: 2.5rem; }
+}
+@media (min-width: 992px){
+  .home-hero-title { font-size: 3rem; }
+  .home-hero-lead  { font-size: 1.125rem; }
+}
 
 /* Fin — LevelUp */
