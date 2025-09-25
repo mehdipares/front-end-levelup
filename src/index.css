@@ -227,5 +227,87 @@ a { text-decoration: none; }
   .home-hero-title { font-size: 3rem; }
   .home-hero-lead  { font-size: 1.125rem; }
 }
+/* ==== Floating Dashboard FAB ==== */
+/* ===== FAB (bouton flottant Dashboard) — version contrastée ===== */
+.lu-fab-fixed{
+  position: fixed;
+  left: 50%;
+  bottom: calc(22px + env(safe-area-inset-bottom)); /* marge iOS safe area */
+  transform: translateX(-50%);
+  z-index: 1080;                   /* au-dessus du contenu (sous offcanvas 1100+) */
+
+  /* Taille & forme */
+  width: 64px; 
+  height: 64px;
+  border-radius: 999px;
+
+  /* Contraste par défaut : bouton BLANC + halo + icône dégradée */
+  background: #fff;
+  border: 3px solid #fff;          /* fin liseré blanc pour se détacher de tout bg */
+  display: grid; 
+  place-items: center;
+  cursor: pointer;
+
+  /* Ombres et transitions */
+  box-shadow:
+    0 10px 30px rgba(37,99,235,.35),
+    0 4px 12px rgba(16,24,40,.18);
+  transition: 
+    transform .15s ease,
+    box-shadow .2s ease,
+    background .2s ease,
+    border-color .2s ease;
+}
+
+/* Halo doux autour du bouton (renforce la lisibilité sur fond violet) */
+.lu-fab-fixed::after{
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  background: radial-gradient(closest-side, rgba(255,255,255,.9), rgba(255,255,255,0));
+  filter: blur(8px);
+  z-index: -1;
+}
+
+/* Icône : dégradé de la charte sur fond blanc */
+.lu-fab-fixed .bi{
+  font-size: 26px;
+  line-height: 1;
+  background: var(--lu-grad);      /* ex: linear-gradient(135deg,#1D4ED8,#2563EB,#7C3AED) */
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;              /* rend l’icône “remplie” par le dégradé */
+  pointer-events: none;
+}
+
+/* Focus accessible */
+.lu-fab-fixed:focus-visible{
+  outline: 3px solid rgba(255,255,255,.75);
+  outline-offset: 2px;
+}
+
+/* Survol / focus : inversion (bouton en dégradé + icône blanche) */
+.lu-fab-fixed:hover,
+.lu-fab-fixed:focus{
+  background: var(--lu-grad);
+  border-color: transparent;
+  box-shadow:
+    0 12px 36px rgba(37,99,235,.45),
+    0 6px 18px rgba(16,24,40,.22);
+  transform: translateX(-50%) translateY(-1px);
+}
+.lu-fab-fixed:hover .bi,
+.lu-fab-fixed:focus .bi{
+  color: #fff;
+  -webkit-text-fill-color: #fff;   /* Safari */
+  background: none;                /* on repasse l’icône en plein blanc */
+}
+
+/* Desktop : bouton un peu plus compact */
+@media (min-width: 768px){
+  .lu-fab-fixed{ width: 56px; height: 56px; }
+}
+
 
 /* Fin — LevelUp */
