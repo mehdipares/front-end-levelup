@@ -309,5 +309,52 @@ a { text-decoration: none; }
   .lu-fab-fixed{ width: 56px; height: 56px; }
 }
 
+/* ===== Boutons HÉRO très contrastés ===== */
+:root{
+  --lu-gold: var(--brand-gold, #F6C544);
+  --lu-gold-hover: #E7B62F;
+  --lu-black-80: rgba(17,24,39,.85);
+  --lu-black-70: rgba(17,24,39,.70);
+}
+
+/* Bouton principal (or) */
+.btn-hero-main{
+  background: var(--lu-gold);
+  color: #0F172A;
+  border: 2px solid var(--lu-gold);
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(0,0,0,.18);
+}
+.btn-hero-main:hover,
+.btn-hero-main:focus{
+  background: var(--lu-gold-hover);
+  border-color: var(--lu-gold-hover);
+  color: #0F172A;
+}
+
+/* Bouton secondaire (noir contrasté) */
+.btn-hero-contrast{
+  background: var(--lu-black-80);
+  color: #fff;
+  border: 2px solid rgba(255,255,255,.95);
+  font-weight: 700;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,.22);
+}
+.btn-hero-contrast:hover,
+.btn-hero-contrast:focus{
+  background: var(--lu-black-70);
+  color: #fff;
+  border-color: #fff;
+}
+
+/* Meilleure lisibilité mobile */
+@media (max-width: 576px){
+  .btn-hero-main,
+  .btn-hero-contrast{
+    border-width: 2.5px;
+  }
+}
+
 
 /* Fin — LevelUp */
