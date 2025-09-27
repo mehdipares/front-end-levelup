@@ -356,5 +356,27 @@ a { text-decoration: none; }
   }
 }
 
+/* --- Overlay guide iOS (Add to Home Screen) --- */
+.a2hs-overlay{
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, .55); /* voile sombre */
+  display: grid; place-items: end center; /* bottom sheet */
+  padding: 16px;
+  z-index: 1080;
+}
+.a2hs-card{
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid #e6eaf2;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(16,24,40,.16);
+  padding: 16px;
+}
+@media (min-width: 768px){
+  .a2hs-overlay{ place-items: center; }
+  .a2hs-card{ border-radius: 18px; padding: 18px; }
+}
+
 
 /* Fin — LevelUp */

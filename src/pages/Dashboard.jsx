@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { getUser, getPriorities } from '../api/users'
 import { getTodayQuote } from '../api/quotes'
 import { listUserGoals, completeUserGoal } from '../api/goals'
+import InstallPWA from '../components/InstallPWA'
+import InstallAppButton from '../components/InstallAppButton'
 
 // Helpers date/cadence
 function isSameDay(a, b) {
@@ -135,6 +137,12 @@ export default function Dashboard() {
             <div className="progress-bar" style={{ width: `${percent}%` }} />
           </div>
         </div>
+      </div>
+      <div className="d-flex justify-content-center mb-3">
+        <InstallAppButton />
+      </div>      
+      <div className="d-flex justify-content-center mb-3">
+        <InstallPWA />
       </div>
 
       {/* Citation */}
