@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { getUser, getPriorities, updateUser } from '../api/users'
 import { listUserGoals } from '../api/goals'
 import { listCategories } from '../api/categories'
+import { profileSchema } from '../validation/schemas'
+import { sanitizeText } from '../security/sanitize'
 
 // Helpers date/cadence
 function isSameDay(a, b) {
@@ -54,6 +56,7 @@ export default function Profile() {
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   useEffect(() => {
     let alive = true
@@ -105,13 +108,11 @@ export default function Profile() {
       if (!cid) return
       byCat.set(cid, (byCat.get(cid) || 0) + 1)
     })
-    // top 5 catégories
     const topCats = Array.from(byCat.entries())
       .sort((a,b) => b[1]-a[1])
       .slice(0,5)
       .map(([cid, count]) => ({ id: cid, name: catName.get(cid) || `Catégorie ${cid}`, count }))
 
-    // Prochaines échéances
     const nextUp = goals
       .filter(g => g.status === 'active')
       .map(g => ({
@@ -121,7 +122,6 @@ export default function Profile() {
       .slice(0, 5)
       .map(x => x.g)
 
-    // pour barres %
     const maxCount = topCats.reduce((m, c) => Math.max(m, c.count), 0) || 1
 
     return { total, active, archived, daily, weekly, eligibleToday, topCats, nextUp, maxCount }
@@ -138,13 +138,37 @@ export default function Profile() {
 
   const onSave = async (e) => {
     e.preventDefault()
-    setSaving(true); setSaveMsg(''); setError('')
+    setSaving(true); setSaveMsg(''); setError(''); setFieldErrors({})
+
     try {
-      await updateUser(userId, { username, email })
+      // ✅ 1) Validation Yup
+      const data = await profileSchema.validate(
+        { username, email },
+        { abortEarly: false }
+      )
+
+      // ✅ 2) Assainissement (DOMPurify) sur username (défense en profondeur)
+      const payload = {
+        username: data.username ? sanitizeText(data.username) : '',
+        email: data.email.trim()
+      }
+
+      await updateUser(userId, payload)
       setSaveMsg('Profil mis à jour ✅')
+
       const fresh = await getUser(userId)
       setUser(fresh || user)
     } catch (e2) {
+      // ✅ Erreurs Yup
+      if (e2?.name === 'ValidationError') {
+        const map = {}
+        e2.inner?.forEach((err) => {
+          if (err?.path) map[err.path] = err.message
+        })
+        setFieldErrors(map)
+        return
+      }
+
       setError(e2?.response?.data?.error || 'Échec de la mise à jour')
     } finally {
       setSaving(false)
@@ -161,6 +185,9 @@ export default function Profile() {
   }
   if (error) return <div className="alert alert-danger">{error}</div>
   if (!user) return <div className="alert alert-warning">Utilisateur introuvable.</div>
+
+  const userErr = fieldErrors.username
+  const emailErr = fieldErrors.email
 
   return (
     <div className="container py-3">
@@ -186,39 +213,47 @@ export default function Profile() {
       </div>
 
       <div className="row g-3">
-        {/* Colonne gauche: Édition profil + Statistiques clés */}
+        {/* Colonne gauche */}
         <div className="col-12 col-lg-6">
           {/* Formulaire profil */}
           <div className="card lu-card mb-3">
             <div className="card-body">
               <h5 className="card-title mb-3">Informations du compte</h5>
 
-              <form onSubmit={onSave} className="vstack gap-3" style={{ maxWidth: 480 }}>
+              <form onSubmit={onSave} className="vstack gap-3" style={{ maxWidth: 480 }} noValidate>
                 <div>
-                  <label className="form-label">Pseudo</label>
+                  <label className="form-label" htmlFor="pr-username">Pseudo</label>
                   <div className="input-group">
                     <span className="input-group-text"><i className="bi bi-person" /></span>
                     <input
-                      className="form-control"
+                      id="pr-username"
+                      className={`form-control ${userErr ? 'is-invalid' : ''}`}
                       value={username}
                       onChange={e => setUsername(e.target.value)}
                       placeholder="Ton pseudo"
+                      aria-invalid={!!userErr}
+                      aria-describedby={userErr ? 'pr-username-error' : undefined}
                     />
                   </div>
+                  {userErr && <div id="pr-username-error" className="text-danger small mt-1">{userErr}</div>}
                 </div>
 
                 <div>
-                  <label className="form-label">Email</label>
+                  <label className="form-label" htmlFor="pr-email">Email</label>
                   <div className="input-group">
                     <span className="input-group-text"><i className="bi bi-envelope" /></span>
                     <input
+                      id="pr-email"
                       type="email"
-                      className="form-control"
+                      className={`form-control ${emailErr ? 'is-invalid' : ''}`}
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="email@exemple.com"
+                      aria-invalid={!!emailErr}
+                      aria-describedby={emailErr ? 'pr-email-error' : undefined}
                     />
                   </div>
+                  {emailErr && <div id="pr-email-error" className="text-danger small mt-1">{emailErr}</div>}
                 </div>
 
                 <div className="d-flex align-items-center gap-2">
@@ -276,7 +311,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Colonne droite: Catégories, Prochaines échéances, Priorités */}
+        {/* Colonne droite */}
         <div className="col-12 col-lg-6">
           {/* Catégories top */}
           <div className="card lu-card mb-3">
@@ -331,7 +366,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Priorités (fond violet doux) */}
+          {/* Priorités */}
           <div className="card lu-prio">
             <div className="card-body">
               <h5 className="card-title mb-3">Priorités</h5>
@@ -345,7 +380,11 @@ export default function Profile() {
                     const name = p.Category?.name ?? p.category_name ?? `Catégorie ${p.category_id}`
                     const score = typeof p.score === 'number' ? p.score : (p.score_value ?? 0)
                     return (
-                      <li key={`${p.category_id}-${i}`} className="list-group-item d-flex justify-content-between align-items-center" style={{ background:'transparent' }}>
+                      <li
+                        key={`${p.category_id}-${i}`}
+                        className="list-group-item d-flex justify-content-between align-items-center"
+                        style={{ background:'transparent' }}
+                      >
                         <span className="text-truncate">{name}</span>
                         <span className="badge text-bg-light">{score}</span>
                       </li>

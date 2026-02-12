@@ -5,6 +5,8 @@ import { login } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import { getUser } from '../api/users'
 import { getUserIdFromToken } from '../api/client'
+import { loginSchema } from '../validation/schemas'
+import { sanitizeText } from '../security/sanitize' // ✅ DOMPurify
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -12,6 +14,7 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const { login: setAuth } = useAuth()
   const navigate = useNavigate()
@@ -20,13 +23,26 @@ export default function Login() {
   const onSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setFieldErrors({})
     setLoading(true)
+
     try {
-      const res = await login({ email, password })
+      // ✅ 0) Assainissement (DOMPurify) — avant validation Yup
+      const cleanEmail = sanitizeText(email)
+
+      // ✅ 1) Validation Yup (abortEarly:false → récupère toutes les erreurs)
+      const data = await loginSchema.validate(
+        { email: cleanEmail, password },
+        { abortEarly: false }
+      )
+
+      // ✅ 2) Appel API avec data validé (trim/format)
+      const res = await login(data)
       if (!res?.token) {
         setError('Réponse inattendue du serveur.')
         return
       }
+
       setAuth(res.token)
 
       const id = getUserIdFromToken(res.token)
@@ -34,12 +50,25 @@ export default function Login() {
         setError('Token invalide: userId introuvable')
         return
       }
+
       const user = await getUser(id)
       const dest = user?.onboarding_done
         ? (location.state?.from?.pathname || '/dashboard')
         : '/onboarding'
+
       navigate(dest, { replace: true })
     } catch (e2) {
+      // ✅ Gestion erreurs Yup
+      if (e2?.name === 'ValidationError') {
+        const map = {}
+        e2.inner?.forEach((err) => {
+          if (err?.path) map[err.path] = err.message
+        })
+        setFieldErrors(map)
+        return
+      }
+
+      // ✅ Erreurs API
       setError(e2?.response?.data?.error || 'Erreur de connexion')
     } finally {
       setLoading(false)
@@ -47,6 +76,9 @@ export default function Login() {
   }
 
   const canSubmit = email.trim() && password.trim() && !loading
+
+  const emailErr = fieldErrors.email
+  const pwdErr = fieldErrors.password
 
   return (
     <div className="container py-5" style={{ maxWidth: 480 }}>
@@ -59,7 +91,7 @@ export default function Login() {
       {/* Carte login */}
       <div className="card lu-card shadow-sm">
         <div className="card-body p-4">
-          {/* Message d’erreur */}
+          {/* Message d’erreur global */}
           {error && (
             <div className="alert alert-danger d-flex align-items-center" role="alert">
               <i className="bi bi-exclamation-triangle-fill me-2"></i>
@@ -67,52 +99,66 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="vstack gap-3">
+          <form onSubmit={onSubmit} className="vstack gap-3" noValidate>
             {/* Email */}
             <div>
-              <label className="form-label fw-semibold">Email</label>
+              <label className="form-label fw-semibold" htmlFor="login-email">Email</label>
               <div className="input-group">
                 <span className="input-group-text">
                   <i className="bi bi-envelope"></i>
                 </span>
                 <input
+                  id="login-email"
                   type="email"
-                  className="form-control"
+                  className={`form-control ${emailErr ? 'is-invalid' : ''}`}
                   placeholder="ex: jean@mail.com"
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
+                  aria-invalid={!!emailErr}
+                  aria-describedby={emailErr ? 'login-email-error' : undefined}
                 />
               </div>
+              {emailErr && (
+                <div id="login-email-error" className="text-danger small mt-1">
+                  {emailErr}
+                </div>
+              )}
             </div>
 
             {/* Password */}
             <div>
-              <label className="form-label fw-semibold">Mot de passe</label>
+              <label className="form-label fw-semibold" htmlFor="login-password">Mot de passe</label>
               <div className="input-group">
                 <span className="input-group-text">
                   <i className="bi bi-lock"></i>
                 </span>
                 <input
+                  id="login-password"
                   type={showPwd ? 'text' : 'password'}
-                  className="form-control"
+                  className={`form-control ${pwdErr ? 'is-invalid' : ''}`}
                   placeholder="Ton mot de passe"
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
+                  aria-invalid={!!pwdErr}
+                  aria-describedby={pwdErr ? 'login-password-error' : undefined}
                 />
                 <button
                   type="button"
                   className="btn btn-outline-secondary"
-                  onClick={() => setShowPwd(s => !s)}
+                  onClick={() => setShowPwd((s) => !s)}
                   tabIndex={-1}
                   aria-label={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                 >
                   <i className={`bi ${showPwd ? 'bi-eye-slash' : 'bi-eye'}`} />
                 </button>
               </div>
+              {pwdErr && (
+                <div id="login-password-error" className="text-danger small mt-1">
+                  {pwdErr}
+                </div>
+              )}
             </div>
 
             {/* Actions */}

@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { listCategories } from '../api/categories'
 import { createTemplate } from '../api/goalTemplates'
 import { addUserGoal } from '../api/goals'
+import { customGoalSchema } from '../validation/schemas'
+import { sanitizeText } from '../security/sanitize'
 
 export default function CustomGoal() {
   const { userId } = useAuth()
@@ -15,6 +17,7 @@ export default function CustomGoal() {
   const [error, setError] = useState('')
   const [ok, setOk] = useState('')
   const [categories, setCategories] = useState([])
+  const [fieldErrors, setFieldErrors] = useState({})
 
   // form state
   const [title, setTitle] = useState('')
@@ -42,6 +45,7 @@ export default function CustomGoal() {
     return () => { alive = false }
   }, [])
 
+  // On garde ton canSubmit (UX), mais la validation "vraie" est Yup au submit
   const canSubmit = useMemo(() => {
     return title.trim().length >= 3
       && Number.isFinite(Number(baseXp)) && Number(baseXp) > 0
@@ -51,32 +55,55 @@ export default function CustomGoal() {
   const onSubmit = async (e) => {
     e.preventDefault()
     if (!canSubmit) return
-    setSaving(true); setError(''); setOk('')
+    setSaving(true); setError(''); setOk(''); setFieldErrors({})
 
     try {
+      // ✅ 1) Validation Yup
+      const raw = {
+        title,
+        description,
+        category_id: categoryId,
+        base_xp: baseXp,
+        frequency_type: frequencyType,
+        frequency_interval: frequencyInterval,
+        max_per_period: maxPerPeriod,
+      }
+
+      const data = await customGoalSchema.validate(raw, { abortEarly: false })
+
+      // ✅ 2) Assainissement (DOMPurify) en défense en profondeur
       const payload = {
-        title: title.trim(),
-        description: description.trim() || null,
-        category_id: categoryId ? Number(categoryId) : null,
-        base_xp: Number(baseXp),
-        frequency_type: frequencyType,           // 'daily' | 'weekly'
-        frequency_interval: Number(frequencyInterval) || 1,
-        max_per_period: Number(maxPerPeriod) || 1,
+        title: sanitizeText(data.title),
+        description: data.description ? sanitizeText(data.description) : null,
+        category_id: data.category_id ?? null,
+        base_xp: Number(data.base_xp),
+        frequency_type: data.frequency_type,           // 'daily' | 'weekly'
+        frequency_interval: Number(data.frequency_interval) || 1,
+        max_per_period: Number(data.max_per_period) || 1,
         enabled: true,
-        visibility: 'private'                    // template privé à l'utilisateur
+        visibility: 'private'
       }
 
       // 1) Créer le template
       const tpl = await createTemplate(payload)
 
       // 2) L’ajouter aux objectifs de l’utilisateur
-      await addUserGoal(userId, { template_id: tpl.id, cadence: frequencyType })
+      await addUserGoal(userId, { template_id: tpl.id, cadence: payload.frequency_type })
 
       setOk('Objectif créé et ajouté à tes goals ✅')
-      // 3) Redirige vers la page des objectifs
       navigate('/goals', { replace: true })
-    } catch (e) {
-      setError(e?.response?.data?.error || 'Erreur à la création de l’objectif')
+    } catch (e2) {
+      // ✅ Erreurs Yup champ par champ
+      if (e2?.name === 'ValidationError') {
+        const map = {}
+        e2.inner?.forEach((err) => {
+          if (err?.path) map[err.path] = err.message
+        })
+        setFieldErrors(map)
+        return
+      }
+
+      setError(e2?.response?.data?.error || 'Erreur à la création de l’objectif')
     } finally {
       setSaving(false)
     }
@@ -91,9 +118,16 @@ export default function CustomGoal() {
     )
   }
 
+  const titleErr = fieldErrors.title
+  const descErr = fieldErrors.description
+  const catErr = fieldErrors.category_id
+  const xpErr = fieldErrors.base_xp
+  const ftErr = fieldErrors.frequency_type
+  const fiErr = fieldErrors.frequency_interval
+  const mpErr = fieldErrors.max_per_period
+
   return (
     <div className="container" style={{ maxWidth: 820 }}>
-      {/* Titre de section — classe lu-section-title retirée pour enlever la barre */}
       <div className="mb-3">
         <h2 className="mb-2">Créer un objectif personnalisé</h2>
         <p className="text-muted mb-0">Définis ton propre template (privé) puis ajoute-le à tes objectifs.</p>
@@ -103,52 +137,64 @@ export default function CustomGoal() {
       {error && <div className="alert alert-danger">{error}</div>}
       {ok && <div className="alert alert-success">{ok}</div>}
 
-      {/* Carte formulaire */}
       <div className="card lu-card">
         <div className="card-body">
-          <form onSubmit={onSubmit} className="vstack gap-3">
+          <form onSubmit={onSubmit} className="vstack gap-3" noValidate>
 
             {/* Titre */}
             <div>
-              <label className="form-label">Titre *</label>
+              <label className="form-label" htmlFor="cg-title">Titre *</label>
               <div className="input-group">
                 <span className="input-group-text"><i className="bi bi-flag" /></span>
                 <input
-                  className="form-control"
+                  id="cg-title"
+                  className={`form-control ${titleErr ? 'is-invalid' : ''}`}
                   placeholder="Ex: Boire 2L d’eau"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  required
+                  aria-invalid={!!titleErr}
+                  aria-describedby={titleErr ? 'cg-title-error' : undefined}
                 />
               </div>
-              <div className="form-text">Minimum 3 caractères.</div>
+              {titleErr ? (
+                <div id="cg-title-error" className="text-danger small mt-1">{titleErr}</div>
+              ) : (
+                <div className="form-text">Minimum 3 caractères.</div>
+              )}
             </div>
 
             {/* Description */}
             <div>
-              <label className="form-label">Description (optionnel)</label>
+              <label className="form-label" htmlFor="cg-desc">Description (optionnel)</label>
               <div className="input-group">
                 <span className="input-group-text"><i className="bi bi-card-text" /></span>
                 <textarea
-                  className="form-control"
+                  id="cg-desc"
+                  className={`form-control ${descErr ? 'is-invalid' : ''}`}
                   placeholder="Détails ou consignes…"
                   rows={3}
                   value={description}
                   onChange={e => setDescription(e.target.value)}
+                  aria-invalid={!!descErr}
+                  aria-describedby={descErr ? 'cg-desc-error' : undefined}
                 />
               </div>
+              {descErr && <div id="cg-desc-error" className="text-danger small mt-1">{descErr}</div>}
             </div>
 
             {/* Catégorie + XP */}
             <div className="row g-3">
               <div className="col-12 col-md-6">
-                <label className="form-label">Catégorie (optionnel)</label>
+                <label className="form-label" htmlFor="cg-cat">Catégorie (optionnel)</label>
                 <div className="input-group">
                   <span className="input-group-text"><i className="bi bi-grid-1x2" /></span>
                   <select
-                    className="form-select"
+                    id="cg-cat"
+                    className={`form-select ${catErr ? 'is-invalid' : ''}`}
                     value={categoryId}
                     onChange={e => setCategoryId(e.target.value)}
+                    aria-invalid={!!catErr}
+                    aria-describedby={catErr ? 'cg-cat-error' : undefined}
                   >
                     <option value="">— Aucune —</option>
                     {categories.map(c => (
@@ -156,74 +202,105 @@ export default function CustomGoal() {
                     ))}
                   </select>
                 </div>
-                <div className="form-text">Permet de bénéficier des bonus si c’est une priorité.</div>
+                {catErr ? (
+                  <div id="cg-cat-error" className="text-danger small mt-1">{catErr}</div>
+                ) : (
+                  <div className="form-text">Permet de bénéficier des bonus si c’est une priorité.</div>
+                )}
               </div>
 
               <div className="col-12 col-md-6">
-                <label className="form-label">XP de base *</label>
+                <label className="form-label" htmlFor="cg-xp">XP de base *</label>
                 <div className="input-group">
                   <span className="input-group-text"><i className="bi bi-stars" /></span>
                   <input
+                    id="cg-xp"
                     type="number"
                     min={1}
-                    className="form-control"
+                    className={`form-control ${xpErr ? 'is-invalid' : ''}`}
                     value={baseXp}
                     onChange={e => setBaseXp(e.target.value)}
-                    required
+                    aria-invalid={!!xpErr}
+                    aria-describedby={xpErr ? 'cg-xp-error' : undefined}
                   />
                   <span className="input-group-text">XP</span>
                 </div>
-                <div className="form-text">XP gagné à chaque complétion (avant bonus).</div>
+                {xpErr ? (
+                  <div id="cg-xp-error" className="text-danger small mt-1">{xpErr}</div>
+                ) : (
+                  <div className="form-text">
+                    XP gagné à chaque complétion (avant bonus). Minimum recommandé : 10 XP.
+                  </div>
+
+                )}
               </div>
             </div>
 
             {/* Fréquence / Intervalle / Max */}
             <div className="row g-3">
               <div className="col-12 col-md-4">
-                <label className="form-label">Fréquence *</label>
+                <label className="form-label" htmlFor="cg-ft">Fréquence *</label>
                 <div className="input-group">
                   <span className="input-group-text"><i className="bi bi-calendar2-week" /></span>
                   <select
-                    className="form-select"
+                    id="cg-ft"
+                    className={`form-select ${ftErr ? 'is-invalid' : ''}`}
                     value={frequencyType}
                     onChange={e => setFrequencyType(e.target.value)}
+                    aria-invalid={!!ftErr}
+                    aria-describedby={ftErr ? 'cg-ft-error' : undefined}
                   >
                     <option value="daily">Quotidien</option>
                     <option value="weekly">Hebdomadaire</option>
                   </select>
                 </div>
+                {ftErr && <div id="cg-ft-error" className="text-danger small mt-1">{ftErr}</div>}
               </div>
 
               <div className="col-12 col-md-4">
-                <label className="form-label">Intervalle</label>
+                <label className="form-label" htmlFor="cg-fi">Intervalle</label>
                 <div className="input-group">
                   <span className="input-group-text"><i className="bi bi-arrow-repeat" /></span>
                   <input
+                    id="cg-fi"
                     type="number"
                     min={1}
-                    className="form-control"
+                    className={`form-control ${fiErr ? 'is-invalid' : ''}`}
                     value={frequencyInterval}
                     onChange={e => setFrequencyInterval(e.target.value)}
+                    aria-invalid={!!fiErr}
+                    aria-describedby={fiErr ? 'cg-fi-error' : undefined}
                   />
                 </div>
-                <div className="form-text">
-                  Ex: 1 = chaque {frequencyType === 'weekly' ? 'semaine' : 'jour'}.
-                </div>
+                {fiErr ? (
+                  <div id="cg-fi-error" className="text-danger small mt-1">{fiErr}</div>
+                ) : (
+                  <div className="form-text">
+                    Ex: 1 = chaque {frequencyType === 'weekly' ? 'semaine' : 'jour'}.
+                  </div>
+                )}
               </div>
 
               <div className="col-12 col-md-4">
-                <label className="form-label">Max par période</label>
+                <label className="form-label" htmlFor="cg-mpp">Max par période</label>
                 <div className="input-group">
                   <span className="input-group-text"><i className="bi bi-123" /></span>
                   <input
+                    id="cg-mpp"
                     type="number"
                     min={1}
-                    className="form-control"
+                    className={`form-control ${mpErr ? 'is-invalid' : ''}`}
                     value={maxPerPeriod}
                     onChange={e => setMaxPerPeriod(e.target.value)}
+                    aria-invalid={!!mpErr}
+                    aria-describedby={mpErr ? 'cg-mpp-error' : undefined}
                   />
                 </div>
-                <div className="form-text">Nombre max de complétions par jour/semaine.</div>
+                {mpErr ? (
+                  <div id="cg-mpp-error" className="text-danger small mt-1">{mpErr}</div>
+                ) : (
+                  <div className="form-text">Nombre max de complétions par jour/semaine.</div>
+                )}
               </div>
             </div>
 
