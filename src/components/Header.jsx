@@ -47,10 +47,7 @@ export default function Header() {
 
   return (
     <>
-      <nav
-        className="navbar navbar-dark sticky-top shadow-sm"
-        style={{ background: 'var(--lu-grad)' }} // bleu/violet charte
-      >
+      <nav className="navbar navbar-dark sticky-top lu-header">
         <div className="container">
           {/* Burger à gauche — ouverture programmatique */}
           <button
@@ -66,7 +63,7 @@ export default function Header() {
 
           {/* Brand (utilise la même nav manuelle que les autres liens) */}
           <NavLink
-            className="navbar-brand fw-bold"
+            className="navbar-brand fw-bold lu-brand"
             to="/"
             onClick={(e) => { e.preventDefault(); go('/') }}
           >
@@ -76,8 +73,8 @@ export default function Header() {
           {/* Bouton à droite */}
           <div className="ms-auto d-flex align-items-center gap-2">
             {isAuthenticated ? (
-              <button className="btn btn-light btn-sm" onClick={handleLogout}>
-                Se déconnecter
+              <button className="btn btn-outline-primary btn-sm" onClick={handleLogout}>
+                <i className="bi bi-box-arrow-right me-1"></i>Se déconnecter
               </button>
             ) : null}
           </div>
